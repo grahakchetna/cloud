@@ -261,6 +261,8 @@
                 </select>
 
                 <input type="hidden" id="video_length" name="video_length" value="full">
+                <!-- layout configuration from layout-designer stored in localStorage -->
+                <input type="hidden" id="layout_config" name="layout_config" value="">
 
                 <label for="voice_provider">Voice Provider</label>
                 <select id="voice_provider" name="voice_provider">
@@ -502,6 +504,15 @@
                 formData.append('voice_provider', document.getElementById('voice_provider').value);
                 formData.append('voice_model', document.getElementById('voice_model').value);
                 formData.append('video_length', document.getElementById('video_length').value);
+                // attach layout configuration from localStorage if available
+                try {
+                    const layoutJson = localStorage.getItem('layout_long');
+                    if (layoutJson) {
+                        formData.append('layout_config', layoutJson);
+                    }
+                } catch (e) {
+                    console.warn('Failed to read layout_long from localStorage', e);
+                }
 
                 // Attach uploaded media (if any)
                 if (mediaContainer) {

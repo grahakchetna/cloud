@@ -672,6 +672,26 @@ def generate():
     voice_model = request.form.get("voice_model", "auto")
     video_length = request.form.get("video_length", "full")
 
+    # layout parameters default to sensible values and may be overridden
+    layout_mediaPosition = "right"
+    layout_mediaSize = "medium"
+    layout_mediaOpacity = 100
+    layout_textAlignment = "center"
+    layout_backgroundBlur = "light"
+
+    # parse layout_config JSON if provided (UI sends it from localStorage)
+    if 'layout_config' in request.form:
+        try:
+            cfg = json.loads(request.form.get('layout_config') or '{}')
+            params = layout_to_video_params(cfg, video_format='short')
+            layout_mediaPosition = params.get('layout_mediaPosition', layout_mediaPosition)
+            layout_mediaSize = params.get('layout_mediaSize', layout_mediaSize)
+            layout_mediaOpacity = params.get('layout_mediaOpacity', layout_mediaOpacity)
+            layout_textAlignment = params.get('layout_textAlignment', layout_textAlignment)
+            layout_backgroundBlur = params.get('layout_backgroundBlur', layout_backgroundBlur)
+        except Exception as e:
+            logger.warning(f"Failed to parse layout_config for short video: {e}")
+
     # 1️⃣ Generate Script
     script = generate_script(headline, description, language)
 
@@ -761,7 +781,12 @@ def generate():
         language=language,
         output_path=output_video_path,
         max_duration=max_duration,
-        media_paths=story_media if story_media else None
+        media_paths=story_media if story_media else None,
+        layout_mediaPosition=layout_mediaPosition,
+        layout_mediaSize=layout_mediaSize,
+        layout_mediaOpacity=layout_mediaOpacity,
+        layout_textAlignment=layout_textAlignment,
+        layout_backgroundBlur=layout_backgroundBlur
     )
 
     if not video_path:
@@ -944,20 +969,46 @@ def generate_long():
             title = data.get("title")
             description = data.get("description")
             language = data.get("language", "english")
-            layout_mediaPosition = data.get("layout_mediaPosition", "right")
-            layout_mediaSize = data.get("layout_mediaSize", "medium")
-            layout_mediaOpacity = int(data.get("layout_mediaOpacity", 100))
-            layout_textAlignment = data.get("layout_textAlignment", "center")
-            layout_backgroundBlur = data.get("layout_backgroundBlur", "light")
+            # allow full layout_config blob
+            if data.get('layout_config'):
+                try:
+                    params = layout_to_video_params(data.get('layout_config'), video_format='long')
+                    layout_mediaPosition = params.get('layout_mediaPosition', layout_mediaPosition)
+                    layout_mediaSize = params.get('layout_mediaSize', layout_mediaSize)
+                    layout_mediaOpacity = params.get('layout_mediaOpacity', layout_mediaOpacity)
+                    layout_textAlignment = params.get('layout_textAlignment', layout_textAlignment)
+                    layout_backgroundBlur = params.get('layout_backgroundBlur', layout_backgroundBlur)
+                except Exception as e:
+                    logger.warning(f"Failed to interpret layout_config in JSON: {e}")
+            else:
+                layout_mediaPosition = data.get("layout_mediaPosition", "right")
+                layout_mediaSize = data.get("layout_mediaSize", "medium")
+                layout_mediaOpacity = int(data.get("layout_mediaOpacity", 100))
+                layout_textAlignment = data.get("layout_textAlignment", "center")
+                layout_backgroundBlur = data.get("layout_backgroundBlur", "light")
+
             if title and description:
                 stories = [{"headline": title, "description": description}]
         else:
             language = request.form.get("language", "english")
-            layout_mediaPosition = request.form.get("layout_mediaPosition", "right")
-            layout_mediaSize = request.form.get("layout_mediaSize", "medium")
-            layout_mediaOpacity = int(request.form.get("layout_mediaOpacity", 100))
-            layout_textAlignment = request.form.get("layout_textAlignment", "center")
-            layout_backgroundBlur = request.form.get("layout_backgroundBlur", "light")
+            # support layout_config blob if submitted by UI
+            if 'layout_config' in request.form:
+                try:
+                    cfg = json.loads(request.form.get('layout_config') or '{}')
+                    params = layout_to_video_params(cfg, video_format='long')
+                    layout_mediaPosition = params.get('layout_mediaPosition', layout_mediaPosition)
+                    layout_mediaSize = params.get('layout_mediaSize', layout_mediaSize)
+                    layout_mediaOpacity = params.get('layout_mediaOpacity', layout_mediaOpacity)
+                    layout_textAlignment = params.get('layout_textAlignment', layout_textAlignment)
+                    layout_backgroundBlur = params.get('layout_backgroundBlur', layout_backgroundBlur)
+                except Exception as e:
+                    logger.warning(f"Failed to parse layout_config in long form: {e}")
+            else:
+                layout_mediaPosition = request.form.get("layout_mediaPosition", "right")
+                layout_mediaSize = request.form.get("layout_mediaSize", "medium")
+                layout_mediaOpacity = int(request.form.get("layout_mediaOpacity", 100))
+                layout_textAlignment = request.form.get("layout_textAlignment", "center")
+                layout_backgroundBlur = request.form.get("layout_backgroundBlur", "light")
             # Multi-story form submission (stories JSON) preferred
             if 'stories' in request.form:
                 try:

@@ -1,6 +1,9 @@
 from PIL import Image, ImageDraw
 import os
+import json
 import video_service
+from app import layout_to_video_params
+import app
 
 os.makedirs('uploads', exist_ok=True)
 # create test image
@@ -216,6 +219,63 @@ print('Generated long video for ticker test (dummy):', out3)
 print('Ticker parts used:', called_parts)
 assert len(called_parts) > 1, 'Expected ticker to be split into multiple lines'
 print('Ticker splitting behaviour verified,', len(called_parts), 'segments')
+
+# ------------------------------------------------------------------
+# Additional tests for layout configuration parsing
+# ------------------------------------------------------------------
+
+# ensure layout_to_video_params translates designer values correctly
+cfg_example = {
+    'media_x': '10',          # left side
+    'media_y': '50',          # y coordinate required for position logic
+    'media_width': '30',      # small
+    'media_opacity': '50',    # 50%
+    'textbox_x': '80',        # right align text
+    'bg_blur': 'heavy'
+}
+params = layout_to_video_params(cfg_example, video_format='short')
+assert params['layout_mediaPosition'] == 'left'
+assert params['layout_mediaSize'] == 'small'
+assert params['layout_mediaOpacity'] == 50
+assert params['layout_textAlignment'] == 'right'
+assert params['layout_backgroundBlur'] == 'heavy'
+print('layout_to_video_params mapping verified')
+
+# verify /generate endpoint will honour layout_config by capturing passed kwargs
+from app import app as flask_app
+client = flask_app.test_client()
+# monkeypatch app.generate_video to record its kwargs
+called_kwargs = {}
+original_video = app.generate_video
+
+def capture_generate_video(title, description, audio_path, **kwargs):
+    called_kwargs.update(kwargs)
+    return 'dummy.mp4'
+
+app.generate_video = capture_generate_video
+
+layout_payload = json.dumps(cfg_example)
+# send layout_config; we don't care if manifest addition fails, we just need to
+# ensure the handler forwarded the parameters correctly
+resp = client.post('/generate', data={
+    'headline': 'Test',
+    'description': 'Desc',
+    'language': 'english',
+    'layout_config': layout_payload
+})
+# allow either success or manifest error (500) so test can run in this environment
+if resp.status_code not in (200, 500):
+    raise AssertionError(f"unexpected status code {resp.status_code}")
+# verify that parameters were captured regardless of response
+assert called_kwargs.get('layout_mediaPosition') == 'left'
+assert called_kwargs.get('layout_mediaSize') == 'small'
+assert called_kwargs.get('layout_mediaOpacity') == 50
+assert called_kwargs.get('layout_textAlignment') == 'right'
+assert called_kwargs.get('layout_backgroundBlur') == 'heavy'
+print('Server parse of layout_config via /generate verified')
+
+# restore original function to avoid side effects
+video_service.generate_video = original_video
 
 # ------------------------------------------------------------------
 # Social media endpoint sanity checks

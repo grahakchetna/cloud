@@ -775,6 +775,8 @@
                 </select>
 
                 <input type="hidden" id="video_length" name="video_length" value="short">
+                <!-- layout configuration passed from localStorage -->
+                <input type="hidden" id="layout_config" name="layout_config" value="">
 
                 <label for="voice_provider">Voice Provider</label>
                 <select id="voice_provider" name="voice_provider">
@@ -831,6 +833,8 @@
                 </div>
 
                 <input type="hidden" id="video_length2" name="video_length" value="full">
+                <!-- layout configuration passed from localStorage -->
+                <input type="hidden" id="layout_config2" name="layout_config" value="">
 
                 <h3 style="margin-top:6px">Stories (add one or more)</h3>
                 <div id="storiesContainer">
@@ -1278,6 +1282,15 @@
                 formData.append('voice_provider', document.getElementById('voice_provider').value);
                 formData.append('voice_model', document.getElementById('voice_model').value);
                 formData.append('video_length', document.getElementById('video_length').value);
+                // include layout settings from localStorage for short videos
+                try {
+                    const layoutJson = localStorage.getItem('layout_short');
+                    if (layoutJson) {
+                        formData.append('layout_config', layoutJson);
+                    }
+                } catch (e) {
+                    console.warn('Unable to read layout_short', e);
+                }
 
                 // attach any media files (short section)
                 const shortContainer = document.getElementById('shortMediaContainer');
@@ -1363,6 +1376,15 @@
                     formData.append('voice_provider', document.getElementById('voice_provider2').value);
                     formData.append('voice_model', document.getElementById('voice_model2').value);
                     formData.append('video_length', document.getElementById('video_length2').value);
+                    // include layout settings from localStorage for long videos
+                    try {
+                        const layoutJson = localStorage.getItem('layout_long');
+                        if (layoutJson) {
+                            formData.append('layout_config', layoutJson);
+                        }
+                    } catch (e) {
+                        console.warn('Unable to read layout_long', e);
+                    }
 
                     // attach any global media uploads for long-form
                     const longContainer = document.getElementById('longMediaContainer');

@@ -190,6 +190,8 @@
                 </select>
 
                 <input type="hidden" id="video_length" name="video_length" value="short">
+                <!-- layout configuration saved in localStorage by layout-designer -->
+                <input type="hidden" id="layout_config" name="layout_config" value="">
 
                 <label for="voice_provider">Voice Provider</label>
                 <select id="voice_provider" name="voice_provider">
@@ -421,6 +423,15 @@
                 formData.append('voice_provider', document.getElementById('voice_provider').value);
                 formData.append('voice_model', document.getElementById('voice_model').value);
                 formData.append('video_length', document.getElementById('video_length').value);
+                // include layout configuration if present in localStorage
+                try {
+                    const layoutJson = localStorage.getItem('layout_short');
+                    if (layoutJson) {
+                        formData.append('layout_config', layoutJson);
+                    }
+                } catch (e) {
+                    console.warn('Failed to read layout_short from localStorage', e);
+                }
 
                 const response = await fetch('/generate', {
                     method: 'POST',
