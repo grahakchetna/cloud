@@ -281,6 +281,9 @@ generate_long_video(
 3. **Load media:**
    - Image: Use ImageClip, resize to fit right-side width
    - Video: Use VideoFileClip, loop if shorter than duration
+   - **Long‑video adjustment:** when generating horizontal long videos ensure the media height
+     does not extend below the breaking bar – clips taller than the available area are resized
+     to fit the gap between the description start and the breaking bar.
 4. **Fallback:** If media fails to load, automatically uses text box
 
 ### Text Box Styling

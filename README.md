@@ -376,9 +376,11 @@ This repository contains internal code and assets — follow your project's lice
 - 🎨 **Professional Background**: Added newsroom studio background SVG (`static/newsroom-studio-bg.svg`) for branded aesthetics
 - 🧹 **Simplified Long Video Form**: Removed embedded layout customization UI; moved to dedicated Layout Designer page
 - 📐 **Text Box Dimensions**:
-  - SHORT videos: 500×700px description box (fixed)
-  - LONG videos: 800×600px description box (proportional scaling)
-
+  - SHORT videos: 500×700px description box (fixed); now splits into media + scrolling text when
+    a media file is supplied
+  - LONG videos: 800×600px description box (proportional scaling)- 📰 **Ticker update for long videos:** Breaking-news paragraph is now split
+  into multiple lines (split on '।' or newline) so that each line scrolls
+  individually instead of the entire paragraph playing at once
 **Previous Changes:**
 - UI: extracted an independent RSS manager page at `/rss` and added lightweight per-feature entry pages that open the corresponding UI tab:
   - `/wordpress`, `/facebook`, `/instagram`, `/short_ui`, `/long_ui`, `/videos_ui` (these redirect to the in-app tab views)

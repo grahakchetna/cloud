@@ -34,10 +34,18 @@ def post_to_instagram():
 
     caption = request.form.get('caption', '')
 
+    # ensure credentials present (same behaviour as Facebook endpoint)
+    page_id = os.getenv('PAGE_ID')
+    page_access_token = os.getenv('PAGE_ACCESS_TOKEN')
+    if not page_id or not page_access_token:
+        return jsonify({"error": "Instagram credentials not configured"}), 400
+
+    # sanitize token similarly to Facebook blueprint
+    tok = page_access_token.strip().strip('"').strip("'")
+    if tok.endswith('>'):
+        tok = tok.rstrip('>')
     try:
-        page_id = os.getenv('PAGE_ID')
-        page_access_token = os.getenv('PAGE_ACCESS_TOKEN')
-        resp = upload_instagram(video_path, caption, page_id=page_id, page_access_token=page_access_token)
+        resp = upload_instagram(video_path, caption, page_id=page_id, page_access_token=tok)
         return jsonify({"status": "posted", "response": resp})
     except InstagramUploadError as e:
         return jsonify({"error": str(e)}), 500

@@ -129,6 +129,33 @@ result = generate_long_video(
   - Auto-looped if shorter than video duration
   - Truncated if longer than video duration
 
+### Short Video Right‑Side Layout
+When generating a **short (1080×1920)** video and a media file is provided the
+right‑hand panel is now split into two stacked regions:
+1. **Media area** – occupies the upper half of the available panel height.
+   The clip is resized to fit this zone while preserving aspect ratio.
+2. **Description scroll** – occupies the lower half and displays the headline
+   description. If the text is longer than the allotted height it scrolls
+   vertically over the duration (same behaviour as the standalone text box).
+
+This ensures that media and text are both visible instead of one replacing the
+other (previous behaviour).
+
+#### No-media adjustment
+When **no media is provided** for a short video the media region is dropped
+entirely and the description box expands to occupy the full right-hand width
+(`right_content_width`).  Users will no longer see an empty gap on the right
+side of the frame.
+
+### Long Video Bottom Ticker
+- **Split lines:** For horizontal (long) videos the breaking news string is
+  split on the danda character (`।`) or explicit newlines.  Each segment is
+  rendered into its own ticker clip and the clips are concatenated to play
+  sequentially over the video duration.  This gives the appearance of a
+  line‑by‑line ticker instead of one enormous paragraph.
+- Splitting is automatic; no configuration is necessary.  If the source text
+  contains only a single segment the old continuous ticker behaviour is used.
+
 ### Headline Variable Consistency
 ```python
 # In generate_video()
