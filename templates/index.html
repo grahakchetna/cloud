@@ -760,7 +760,7 @@
         <!-- ============= TAB 1: CREATE SHORT VIDEO ============= -->
         <div id="create-short" class="tab-content active section">
             <h2>⏱ Create Short Video (15 seconds)</h2>
-            <form id="generateForm" method="POST" action="/generate">
+            <form id="generateForm" method="POST" action="/generate" enctype="multipart/form-data">
                 <label for="headline">Headline</label>
                 <input type="text" id="headline" name="headline" placeholder="Breaking News: Major Development..." required>
 
@@ -788,6 +788,20 @@
                 <select id="voice_model" name="voice_model">
                     <option value="auto">Auto</option>
                 </select>
+
+                <!-- optional media uploads -->
+                <label>Upload images/videos (optional)</label>
+                <div id="shortMediaContainer">
+                    <div class="media-block">
+                        <input type="file" name="media_file_0" accept="image/*,video/*">
+                    </div>
+                </div>
+                <button type="button" id="shortAddMediaBtn" style="margin-bottom:12px;">+ Add Another Media</button>
+
+                <div id="shortMediaPreviewWrap" style="margin-bottom:12px; display:none;">
+                    <img id="shortMediaPreviewImg" src="" alt="preview" style="max-width:100%; display:none; border-radius:8px;" />
+                    <video id="shortMediaPreviewVideo" src="" style="max-width:100%; display:none; border-radius:8px;" autoplay muted loop playsinline></video>
+                </div>
 
                 <button type="submit" id="submitBtn">Generate Video</button>
                 
@@ -829,6 +843,20 @@
                 </div>
 
                 <small style="display:block;color:#aaa;margin-bottom:10px">Each story may include an optional image/video upload (used as green screen/visual). If none provided, the system will attempt to fetch a suitable image.</small>
+
+                <!-- optional global media uploads for long video -->
+                <label>Upload images/videos (optional)</label>
+                <div id="longMediaContainer">
+                    <div class="media-block">
+                        <input type="file" name="media_file_0" accept="image/*,video/*">
+                    </div>
+                </div>
+                <button type="button" id="longAddMediaBtn" style="margin-bottom:12px;">+ Add Another Media</button>
+
+                <div id="longMediaPreviewWrap" style="margin-bottom:12px; display:none;">
+                    <img id="longMediaPreviewImg" src="" alt="preview" style="max-width:100%; display:none; border-radius:8px;" />
+                    <video id="longMediaPreviewVideo" src="" style="max-width:100%; display:none; border-radius:8px;" autoplay muted loop playsinline></video>
+                </div>
 
                 <button type="submit" id="submitBtnLong">Generate Video</button>
                 
@@ -1156,6 +1184,70 @@
             });
         }
 
+        // media preview helpers (shared) - supports 'short' and 'long' prefixes
+        function setupMediaSection(prefix) {
+            const container = document.getElementById(prefix + 'MediaContainer');
+            const addBtn = document.getElementById(prefix + 'AddMediaBtn');
+            const wrap = document.getElementById(prefix + 'MediaPreviewWrap');
+            const img = document.getElementById(prefix + 'MediaPreviewImg');
+            const video = document.getElementById(prefix + 'MediaPreviewVideo');
+            let slideInterval = null;
+            let files = [];
+
+            function refreshFileList() {
+                files = Array.from(container ? container.querySelectorAll('input[type=file]') : [])
+                    .flatMap(inp => inp.files ? Array.from(inp.files) : []);
+                if (files.length === 0) {
+                    if (wrap) wrap.style.display = 'none';
+                    if (slideInterval) { clearInterval(slideInterval); slideInterval = null; }
+                    return;
+                }
+                let idx = 0;
+                showFile(files[idx], wrap, img, video);
+                if (slideInterval) clearInterval(slideInterval);
+                slideInterval = setInterval(() => {
+                    idx = (idx + 1) % files.length;
+                    showFile(files[idx], wrap, img, video);
+                }, 3000);
+            }
+
+            if (addBtn) {
+                addBtn.addEventListener('click', () => {
+                    const idx = container ? container.children.length : 0;
+                    const div = document.createElement('div');
+                    div.className = 'media-block';
+                    div.innerHTML = `<input type=\"file\" name=\"media_file_${idx}\" accept=\"image/*,video/*\">`;
+                    container.appendChild(div);
+                    const inp = div.querySelector('input');
+                    if (inp) inp.addEventListener('change', refreshFileList);
+                });
+            }
+            if (container) {
+                container.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', refreshFileList));
+            }
+        }
+
+        function showFile(f, wrap, img, video) {
+            if (!f) return;
+            const url = URL.createObjectURL(f);
+            if (wrap) wrap.style.display = 'block';
+            if (f.type && f.type.indexOf('video') === 0) {
+                if (img) { img.style.display = 'none'; img.src = ''; }
+                if (video) { video.src = url; video.style.display = 'block'; video.play().catch(()=>{}); }
+            } else {
+                if (video) { video.pause(); video.style.display = 'none'; video.src = ''; }
+                if (img) { img.src = url; img.style.display = 'block'; }
+            }
+            const cleanup = () => { setTimeout(()=>{ try{ URL.revokeObjectURL(url);}catch(e){} },60000); };
+            if (video) video.onloadeddata = cleanup;
+            if (img) img.onload = cleanup;
+        }
+
+        // initialize both media sections if present
+        setupMediaSection('short');
+        setupMediaSection('long');
+
+
         if (form && submitBtn && statusDiv) {
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -1186,6 +1278,16 @@
                 formData.append('voice_provider', document.getElementById('voice_provider').value);
                 formData.append('voice_model', document.getElementById('voice_model').value);
                 formData.append('video_length', document.getElementById('video_length').value);
+
+                // attach any media files (short section)
+                const shortContainer = document.getElementById('shortMediaContainer');
+                if (shortContainer) {
+                    Array.from(shortContainer.querySelectorAll('input[type=file]')).forEach(inp => {
+                        if (inp.files && inp.files[0]) {
+                            formData.append(inp.name, inp.files[0]);
+                        }
+                    });
+                }
 
                 const response = await fetch('/generate', {
                     method: 'POST',
@@ -1261,6 +1363,16 @@
                     formData.append('voice_provider', document.getElementById('voice_provider2').value);
                     formData.append('voice_model', document.getElementById('voice_model2').value);
                     formData.append('video_length', document.getElementById('video_length2').value);
+
+                    // attach any global media uploads for long-form
+                    const longContainer = document.getElementById('longMediaContainer');
+                    if (longContainer) {
+                        Array.from(longContainer.querySelectorAll('input[type=file]')).forEach(inp => {
+                            if (inp.files && inp.files[0]) {
+                                formData.append(inp.name, inp.files[0]);
+                            }
+                        });
+                    }
 
                     const response = await fetch('/generate-long', {
                         method: 'POST',
@@ -1439,6 +1551,10 @@
 
                     <label>Optional image/video (green screen)</label>
                     <input type="file" name="story_file_${index}" accept="image/*,video/*">
+                    <div class="media-preview" style="margin-top:6px;display:none;">
+                        <img class="preview-img" style="max-width:100%;display:none;border-radius:8px;" />
+                        <video class="preview-video" style="max-width:100%;display:none;border-radius:8px;" autoplay muted loop playsinline></video>
+                    </div>
                 `;
 
                 storiesContainer.appendChild(wrapper);
@@ -1457,6 +1573,33 @@
                     if (next) storiesContainer.insertBefore(next, wrapper);
                     rebuildStoryIndexes();
                 });
+
+                // media preview for this block
+                const fileInput = wrapper.querySelector('input[type=file]');
+                if (fileInput) {
+                    const previewDiv = wrapper.querySelector('.media-preview');
+                    const previewImg = wrapper.querySelector('.preview-img');
+                    const previewVideo = wrapper.querySelector('.preview-video');
+                    fileInput.addEventListener('change', (e) => {
+                        const f = e.target.files && e.target.files[0];
+                        if (!f) {
+                            if (previewDiv) previewDiv.style.display = 'none';
+                            return;
+                        }
+                        const url = URL.createObjectURL(f);
+                        if (previewDiv) previewDiv.style.display = 'block';
+                        if (f.type && f.type.indexOf('video') === 0) {
+                            if (previewImg) { previewImg.style.display = 'none'; previewImg.src = ''; }
+                            if (previewVideo) { previewVideo.src = url; previewVideo.style.display = 'block'; previewVideo.play().catch(()=>{}); }
+                        } else {
+                            if (previewVideo) { previewVideo.pause(); previewVideo.style.display = 'none'; previewVideo.src = ''; }
+                            if (previewImg) { previewImg.src = url; previewImg.style.display = 'block'; }
+                        }
+                        const cleanup = () => { setTimeout(()=>{ try{ URL.revokeObjectURL(url);}catch(e){} },60000); };
+                        if (previewVideo) previewVideo.onloadeddata = cleanup;
+                        if (previewImg) previewImg.onload = cleanup;
+                    });
+                }
             }
 
             function rebuildStoryIndexes() {
@@ -1521,6 +1664,16 @@
                     formData.append('language', document.getElementById('language2').value);
                     formData.append('voice_provider', document.getElementById('voice_provider2').value);
                     formData.append('video_length', document.getElementById('video_length2').value);
+
+                    // attach any global media uploads for long-form
+                    const longContainer2 = document.getElementById('longMediaContainer');
+                    if (longContainer2) {
+                        Array.from(longContainer2.querySelectorAll('input[type=file]')).forEach(inp => {
+                            if (inp.files && inp.files[0]) {
+                                formData.append(inp.name, inp.files[0]);
+                            }
+                        });
+                    }
 
                     const response = await fetch('/generate-long', {
                         method: 'POST',

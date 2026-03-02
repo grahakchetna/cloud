@@ -449,6 +449,16 @@
         </div>
     </div>
 
+    <script>
+        // Defensive global for legacy inline scripts that reference `mediaContainer`
+        try {
+            if (typeof mediaContainer === 'undefined') {
+                window.mediaContainer = document.getElementById('mediaContainer') || document.getElementById('shortMediaContainer') || document.getElementById('longMediaContainer') || null;
+            }
+        } catch (e) {
+            // ignore
+        }
+    </script>
     {% block scripts %}
     <!-- Page scripts go here -->
     {% endblock %}

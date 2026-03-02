@@ -175,7 +175,7 @@
         <!-- SHORT VIDEO FORM -->
         <div class="section">
             <h2>⏱ Create Short Video (15 seconds)</h2>
-            <form id="generateForm" method="POST" action="/generate">
+            <form id="generateForm" method="POST" action="/generate" enctype="multipart/form-data">
                 <label for="headline">Headline</label>
                 <input type="text" id="headline" name="headline" placeholder="Breaking News: Major Development..." required>
 
@@ -203,6 +203,20 @@
                 <select id="voice_model" name="voice_model">
                     <option value="auto">Auto</option>
                 </select>
+
+                <!-- optional media uploads -->
+                <label>Upload images/videos (optional)</label>
+                <div id="shortMediaContainer">
+                    <div class="media-block">
+                        <input type="file" name="media_file_0" accept="image/*,video/*">
+                    </div>
+                </div>
+                <button type="button" id="shortAddMediaBtn" style="margin-bottom:12px;">+ Add Another Media</button>
+
+                <div id="shortMediaPreviewWrap" style="margin-bottom:12px; display:none;">
+                    <img id="shortMediaPreviewImg" src="" alt="preview" style="max-width:100%; display:none; border-radius:8px;" />
+                    <video id="shortMediaPreviewVideo" src="" style="max-width:100%; display:none; border-radius:8px;" autoplay muted loop playsinline></video>
+                </div>
 
                 <button type="submit" id="submitBtn">Generate Video</button>
                 
@@ -258,6 +272,70 @@
             populateModels('auto');
             document.getElementById('voice_provider').addEventListener('change', (e) => populateModels(e.target.value));
             
+            // media preview helpers
+            const mediaContainer = document.getElementById('shortMediaContainer');
+            const addMediaBtn = document.getElementById('shortAddMediaBtn');
+            const previewWrap = document.getElementById('shortMediaPreviewWrap');
+            const previewImg = document.getElementById('shortMediaPreviewImg');
+            const previewVideo = document.getElementById('shortMediaPreviewVideo');
+            let slideInterval = null;
+            let fileList = [];
+
+            function refreshFileList() {
+                fileList = Array.from(mediaContainer.querySelectorAll('input[type=file]'))
+                    .flatMap(inp => inp.files ? Array.from(inp.files) : []);
+                if (fileList.length === 0) {
+                    previewWrap.style.display = 'none';
+                    if (slideInterval) { clearInterval(slideInterval); slideInterval = null; }
+                    return;
+                }
+                let idx = 0;
+                showFile(fileList[idx]);
+                if (slideInterval) clearInterval(slideInterval);
+                slideInterval = setInterval(() => {
+                    idx = (idx + 1) % fileList.length;
+                    showFile(fileList[idx]);
+                }, 3000);
+            }
+
+            function showFile(f) {
+                if (!f) return;
+                const url = URL.createObjectURL(f);
+                previewWrap.style.display = 'block';
+                if (f.type && f.type.indexOf('video') === 0) {
+                    previewImg.style.display = 'none';
+                    previewImg.src = '';
+                    previewVideo.src = url;
+                    previewVideo.style.display = 'block';
+                    previewVideo.play().catch(()=>{});
+                } else {
+                    previewVideo.pause();
+                    previewVideo.style.display = 'none';
+                    previewVideo.src = '';
+                    previewImg.src = url;
+                    previewImg.style.display = 'block';
+                }
+                // revoke later
+                const cleanup = () => { setTimeout(()=>{ try{ URL.revokeObjectURL(url);}catch(e){} },60000); };
+                previewVideo.onloadeddata = previewImg.onload = cleanup;
+            }
+
+            addMediaBtn.addEventListener('click', () => {
+                if (!mediaContainer) {
+                    console.error('Media container not found');
+                    return;
+                }
+                const idx = mediaContainer.children.length;
+                const div = document.createElement('div');
+                div.className = 'media-block';
+                div.innerHTML = `<input type="file" name="media_file_${idx}" accept="image/*,video/*">`;
+                mediaContainer.appendChild(div);
+                div.querySelector('input').addEventListener('change', refreshFileList);
+            });
+
+            // attach change listeners to initial input
+            mediaContainer.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', refreshFileList));
+
             // Check credentials
             fetch('/config/credentials')
                 .then(res => res.json())

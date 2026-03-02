@@ -23,7 +23,7 @@ LONG_VIDEOS_DIR = os.path.join(VIDEOS_DIR, "long")
 
 def generate_long_video(stories, audio_path, language="en", output_path=None, max_duration=None, story_medias=None, media_path=None, green_screen_media=None, 
                        layout_mediaPosition="right", layout_mediaSize="medium", layout_mediaOpacity=100, 
-                       layout_textAlignment="center", layout_backgroundBlur="light", **kwargs):
+                       layout_textAlignment="center", layout_backgroundBlur="light", desc_to_ticker_on_media=True, **kwargs):
     """Generate a horizontal long-form video using the short-video layout.
 
     Args:
@@ -67,9 +67,15 @@ def generate_long_video(stories, audio_path, language="en", output_path=None, ma
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
     # Determine which media to use (media_path takes precedence)
+    # Determine which media(s) to pass through to short layout
     effective_media_path = media_path
-    if not effective_media_path and story_medias and len(story_medias) > 0:
-        effective_media_path = story_medias[0]  # Use first media from list if available
+    # prefer explicit list if provided
+    effective_media_list = None
+    if story_medias and isinstance(story_medias, (list, tuple)) and len(story_medias) > 0:
+        effective_media_list = [p for p in story_medias if p]
+        # keep first item for compatibility fallback
+        if not effective_media_path and len(effective_media_list) > 0:
+            effective_media_path = effective_media_list[0]
 
     # Temporarily set the short-layout dimensions to 1920x1080
     original_w = getattr(video_service, "WIDTH", None)
@@ -87,11 +93,13 @@ def generate_long_video(stories, audio_path, language="en", output_path=None, ma
             output_path=output_path, 
             max_duration=max_duration,
             media_path=effective_media_path,
+            media_paths=effective_media_list,
             layout_mediaPosition=layout_mediaPosition,
             layout_mediaSize=layout_mediaSize,
             layout_mediaOpacity=layout_mediaOpacity,
             layout_textAlignment=layout_textAlignment,
             layout_backgroundBlur=layout_backgroundBlur
+            , desc_to_ticker_on_media=desc_to_ticker_on_media
         )
 
     finally:

@@ -443,9 +443,9 @@ def create_right_content_box(text, fontsize=32, color=(255, 255, 255), bold=True
     return temp_file.name, img_width, img_height
 
 
-def generate_video(title, description, audio_path, language="en", use_female_anchor=True, output_path=None, max_duration=None, media_path=None, 
+def generate_video(title, description, audio_path, language="en", use_female_anchor=True, output_path=None, max_duration=None, media_path=None, media_paths=None,
                   layout_mediaPosition="right", layout_mediaSize="medium", layout_mediaOpacity=100, 
-                  layout_textAlignment="center", layout_backgroundBlur="light"):
+                  layout_textAlignment="center", layout_backgroundBlur="light", desc_to_ticker_on_media=False):
     """Generate a video from provided audio and assets.
 
     Args:
@@ -456,8 +456,9 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         use_female_anchor: Whether to use female anchor
         output_path: Custom output path
         max_duration: Optional max duration in seconds
-        media_path: Optional path to media file (image or video) to display on right side.
-                    If provided, media is shown instead of description text.
+        media_path: Optional single path to media file (image or video) to display on right side.
+                    This argument is still supported for backwards compatibility.
+        media_paths: Optional list of paths which will be cycled/concatenated for the duration.
         layout_mediaPosition: Position of media ('left', 'right', 'center')
         layout_mediaSize: Size of media ('small', 'medium', 'large', 'full')
         layout_mediaOpacity: Opacity of media (0-100)
@@ -467,7 +468,6 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
     Returns:
         Path to generated video file
     """
-
     if output_path is None:
         output_path = "static/final_video.mp4"
     
@@ -481,18 +481,22 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
 
     duration = voice.duration
 
-    # Try to use shorts background image if available, otherwise fall back to bg.mp4
-    shorts_bg_path = "shortbg.png"  # In root directory
-    
+    # Select appropriate background image (short vs long) based on current dimensions
+    if WIDTH > 1080:
+        # horizontal long-video background
+        bg_path = "longbg.png"
+    else:
+        bg_path = "shortbg.png"
+
     # Background
     try:
-        if os.path.exists(shorts_bg_path):
-            logger.info(f"Loading shorts background: {shorts_bg_path}")
-            bg_img = ImageClip(shorts_bg_path)
+        if os.path.exists(bg_path):
+            logger.info(f"Loading background: {bg_path}")
+            bg_img = ImageClip(bg_path)
             bg = bg_img.resize((WIDTH, HEIGHT)).set_duration(duration)
-            logger.info("✓ Shorts background loaded")
+            logger.info("✓ Background loaded")
         else:
-            logger.warning(f"Shorts background not found: {shorts_bg_path}, using bg.mp4")
+            logger.warning(f"Background not found: {bg_path}, using bg.mp4")
             bg = (
                 VideoFileClip("assets/bg.mp4")
                 .resize((WIDTH, HEIGHT))
@@ -585,6 +589,8 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
 
     # Define breaking bar Y early so right-side layout can reference it
     breaking_bar_y = HEIGHT - 220
+    # vertical start for description/media box area (just below headline bar)
+    desc_start_y = headline_bar_y + headline_bar_height + 10
 
     # ============= MEDIA POSITIONING BASED ON LAYOUT PARAMETERS =============
     # Determine media width/height based on size parameter
@@ -610,34 +616,71 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
     # between the headline bar and breaking bar to avoid overlap and provide
     # consistent scrolling behavior for long descriptions.
 
-    # Check for media first (images/videos). If media exists we show it as before.
-    has_media = media_path and os.path.exists(media_path)
+    # Determine effective media list (media_paths takes precedence)
+    effective_media_list = []
+    if media_paths and isinstance(media_paths, (list, tuple)) and len(media_paths) > 0:
+        effective_media_list = [p for p in media_paths if p]
+    elif media_path:
+        effective_media_list = [media_path]
 
-    if has_media:
-        logger.info(f"Media available: {media_path} - displaying media on right side")
+    use_text_box = True
+    right_content_clip = None
+    right_bg_box = None
+    
+    if effective_media_list:
+        # build a composite media clip that spans the entire duration
+        logger.info(f"Media list provided ({len(effective_media_list)} item(s)) - preparing composite clip")
         try:
-            if media_path.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
-                media_clip = VideoFileClip(media_path)
-                media_clip = media_clip.resize((right_content_width, int(right_content_width * media_clip.h / media_clip.w)))
-                media_clip = media_clip.subclip(0, min(media_clip.duration, duration))
-                if media_clip.duration < duration:
-                    media_clip = concatenate_videoclips([media_clip] * int(duration / media_clip.duration + 1)).subclip(0, duration)
+            clips = []
+            for i, mp in enumerate(effective_media_list):
+                logger.info(f"Processing media {i+1}/{len(effective_media_list)}: {mp}")
+                if not os.path.exists(mp):
+                    logger.warning(f"Media path does not exist: {mp}")
+                    continue
+                try:
+                    if mp.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
+                        logger.info(f"  Loading as video...")
+                        clip = VideoFileClip(mp)
+                        clip = clip.resize((right_content_width, int(right_content_width * clip.h / clip.w)))
+                        clip = clip.subclip(0, min(clip.duration, duration))
+                    else:
+                        logger.info(f"  Loading as image...")
+                        img = ImageClip(mp)
+                        aspect = img.w / img.h if img.h > 0 else 1
+                        height = int(right_content_width / aspect)
+                        clip = img.resize((right_content_width, height)).set_duration(duration)
+                    clips.append(clip)
+                    logger.info(f"  ✓ Successfully loaded media {i+1}")
+                except Exception as e:
+                    logger.error(f"  ✗ Failed to load media {i+1} ({mp}): {e}")
+                    continue
+                    
+            if clips:
+                logger.info(f"Successfully loaded {len(clips)} clip(s), combining...")
+                if len(clips) > 1:
+                    combined = concatenate_videoclips(clips, method="compose")
+                else:
+                    combined = clips[0]
+                if combined.duration < duration:
+                    combined = concatenate_videoclips([combined] * int(duration / combined.duration + 1)).subclip(0, duration)
+                media_clip = combined
+                media_height = media_clip.h
+                # center vertically by default
+                right_content_y = int((HEIGHT - media_height) / 2)
+                # for long video (horizontal) force media into text-box vertical area
+                if WIDTH > 1080:
+                    right_content_y = desc_start_y
+                media_clip = media_clip.set_position((right_content_x, right_content_y))
+                media_clip = media_clip.set_opacity(layout_mediaOpacity / 100.0)
+                right_content_clip = media_clip
+                right_bg_box = None
+                use_text_box = False
+                logger.info(f"✓ Media clip prepared and positioned successfully")
             else:
-                media_img = ImageClip(media_path)
-                media_aspect = media_img.w / media_img.h if media_img.h > 0 else 1
-                media_height = int(right_content_width / media_aspect)
-                media_clip = media_img.resize((right_content_width, media_height)).set_duration(duration)
-
-            media_height = media_clip.h
-            right_content_y = int((HEIGHT - media_height) / 2)
-            media_clip = media_clip.set_position((right_content_x, right_content_y))
-            media_clip = media_clip.set_opacity(layout_mediaOpacity / 100.0)
-            right_content_clip = media_clip
-            right_bg_box = None
-            use_text_box = False
+                logger.info(f"No clips loaded from media list, falling back to text box")
+                use_text_box = True
         except Exception as e:
-            logger.warning(f"Failed to load media {media_path}: {e} - falling back to text box")
-            has_media = False
+            logger.warning(f"Failed to prepare composite media clip: {e} - falling back to text box")
             use_text_box = True
     else:
         use_text_box = True
@@ -744,9 +787,14 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         "Instagram : www.instagram.com/grahak.chetna"
     )
     # create ticker-style image like headline bar
+    # Use slightly larger text and slower scroll for long (horizontal) videos
+    if WIDTH > 1080:
+        bt_fontsize = 48
+    else:
+        bt_fontsize = 40
     breaking_text_img_path, breaking_text_height = create_ticker_text_image(
         breaking_raw,
-        fontsize=40,
+        fontsize=bt_fontsize,
         color=(255, 255, 255),
         bold=False,
         language="gujarati"
@@ -754,14 +802,36 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
     breaking_text_img = ImageClip(breaking_text_img_path).set_duration(duration)
     # animation matching headline ticker
     def breaking_ticker_position(t):
-        scroll_speed = WIDTH + 4500
+        # For long videos use a gentler scroll speed for readability
+        if WIDTH > 1080:
+            scroll_speed = WIDTH + 2000
+        else:
+            scroll_speed = WIDTH + 4500
         x_pos = WIDTH - (t % duration) * (scroll_speed / duration)
-        # vertically center inside breaking bar (height 130)
+        # vertically center inside breaking bar (height 130); nudge upward slightly for long videos
         y_center = int(breaking_bar_y + (130 - breaking_text_height) / 2)
+        if WIDTH > 1080:
+            y_center = max(0, y_center - 12)
         return (x_pos, y_center)
     breaking_text = breaking_text_img.set_position(breaking_ticker_position)
 
+    # If media is present (we're not using the text box) and the caller
+    # requested that description be placed in the breaking ticker, create
+    # a ticker clip for the description instead of the right-side box.
     breaking_desc_text = None
+    try:
+        if (not use_text_box) and desc_to_ticker_on_media and description:
+            bdt_img_path, bdt_height = create_ticker_text_image(
+                description,
+                fontsize=40,
+                color=(255, 255, 255),
+                bold=False,
+                language=language
+            )
+            bdt_img = ImageClip(bdt_img_path).set_duration(duration)
+            breaking_desc_text = bdt_img.set_position(breaking_ticker_position)
+    except Exception:
+        breaking_desc_text = None
 
     # AI label
     ai_label_img_path, _ = create_text_image(
@@ -779,16 +849,31 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
     )
 
     # Background music (loop safe)
-    music_clip = AudioFileClip("assets/music.mp3")
+    try:
+        music_clip = AudioFileClip("assets/music.mp3")
+        
+        # Validate the music file has actual content
+        if music_clip.duration <= 0:
+            raise ValueError("Music file has no duration")
+        
+        if music_clip.duration < duration:
+            music = afx.audio_loop(music_clip, duration=duration)
+        else:
+            music = music_clip.subclip(0, duration)
+        
+        music = music.volumex(0.08)
+        
+    except Exception as e:
+        # If music file is missing or corrupted, use voice only
+        logger.warning(f"Could not load background music: {e}")
+        logger.info("Continuing with voice audio only")
+        music = None
 
-    if music_clip.duration < duration:
-        music = afx.audio_loop(music_clip, duration=duration)
+    # Create final audio (voice with optional background music)
+    if music is not None:
+        final_audio = CompositeAudioClip([music, voice])
     else:
-        music = music_clip.subclip(0, duration)
-
-    music = music.volumex(0.08)
-
-    final_audio = CompositeAudioClip([music, voice])
+        final_audio = voice
 
     # Build clip list and filter out any None values to avoid moviepy errors
     clips = [
@@ -803,7 +888,7 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         ticker_clip,
         # Right side content - either media or text box
         right_bg_box if 'right_bg_box' in locals() and right_bg_box is not None else None,
-        right_content_clip,
+            right_content_clip if right_content_clip is not None else None,
         breaking_bar,
         breaking_bar_border,
         breaking_text,

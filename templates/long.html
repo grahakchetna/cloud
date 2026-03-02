@@ -246,7 +246,7 @@
         <!-- LONG VIDEO FORM -->
         <div class="section">
             <h2>▶ Create Long Video (Full Duration)</h2>
-            <form id="generateFormLong" method="POST" action="/generate-long">
+            <form id="generateFormLong" method="POST" action="/generate-long" enctype="multipart/form-data">
                 <label for="headline">Headline</label>
                 <input type="text" id="headline" name="headline" placeholder="Breaking News: Major Development..." required>
 
@@ -275,13 +275,31 @@
                     <option value="auto">Auto</option>
                 </select>
 
-                <label for="story_file_0">Upload Image or Video (optional)</label>
-                <input type="file" id="story_file_0" name="story_file_0" accept="image/*,video/*">
-
-                <div id="mediaPreviewWrap" style="margin-bottom:12px; display:none;">
-                    <img id="mediaPreviewImg" src="" alt="preview" style="max-width:100%; display:none; border-radius:8px;" />
-                    <video id="mediaPreviewVideo" src="" style="max-width:100%; display:none; border-radius:8px;" autoplay muted loop playsinline></video>
+                <!-- optional media uploads for long form -->
+                <label>Upload Image/Video (optional)</label>
+                <div id="longMediaContainer">
+                    <div class="media-block">
+                        <input type="file" name="media_file_0" accept="image/*,video/*">
+                    </div>
                 </div>
+                <button type="button" id="longAddMediaBtn" style="margin-bottom:12px;">+ Add Another Media</button>
+
+                <div id="longMediaPreviewWrap" style="margin-bottom:12px; display:none;">
+                    <img id="longMediaPreviewImg" src="" alt="preview" style="max-width:100%; display:none; border-radius:8px;" />
+                    <video id="longMediaPreviewVideo" src="" style="max-width:100%; display:none; border-radius:8px;" autoplay muted loop playsinline></video>
+                </div>
+
+                <h3 style="margin-top:6px">Stories (add one or more)</h3>
+                <div id="storiesContainer">
+                    <!-- Template story block inserted by JS -->
+                </div>
+
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <button type="button" id="addStoryBtn">+ Add Story</button>
+                    <button type="button" id="clearStoriesBtn">Clear Stories</button>
+                </div>
+
+                <small style="display:block;color:#aaa;margin-bottom:10px">Each story may include an optional image/video upload (used as green screen/visual). If none provided, the system will attempt to fetch a suitable image.</small>
 
                 <button type="submit" id="submitBtn">Generate Video</button>
                 
@@ -339,44 +357,64 @@
             document.getElementById('voice_provider').addEventListener('change', (e) => populateModels(e.target.value));
             
             // ===== MEDIA PREVIEW SETUP =====
-            const fileInput = document.getElementById('story_file_0');
-            const previewWrap = document.getElementById('mediaPreviewWrap');
-            const previewImg = document.getElementById('mediaPreviewImg');
-            const previewVideo = document.getElementById('mediaPreviewVideo');
-            if (fileInput) {
-                fileInput.addEventListener('change', (ev) => {
-                    const f = ev.target.files && ev.target.files[0];
-                    if (!f) {
-                        previewWrap.style.display = 'none';
-                        previewImg.style.display = 'none';
-                        previewVideo.style.display = 'none';
-                        previewImg.src = '';
-                        previewVideo.src = '';
+            const mediaContainer = document.getElementById('longMediaContainer');
+            const addMediaBtn = document.getElementById('longAddMediaBtn');
+            const previewWrap = document.getElementById('longMediaPreviewWrap');
+            const previewImg = document.getElementById('longMediaPreviewImg');
+            const previewVideo = document.getElementById('longMediaPreviewVideo');
+            let slideInterval = null;
+            let fileList = [];
+
+            function refreshFileList() {
+                fileList = Array.from(mediaContainer ? mediaContainer.querySelectorAll('input[type=file]') : [])
+                    .flatMap(inp => inp.files ? Array.from(inp.files) : []);
+                if (fileList.length === 0) {
+                    if (previewWrap) previewWrap.style.display = 'none';
+                    if (slideInterval) { clearInterval(slideInterval); slideInterval = null; }
+                    return;
+                }
+                let idx = 0;
+                showFile(fileList[idx]);
+                if (slideInterval) clearInterval(slideInterval);
+                slideInterval = setInterval(() => {
+                    idx = (idx + 1) % fileList.length;
+                    showFile(fileList[idx]);
+                }, 3000);
+            }
+
+            function showFile(f) {
+                if (!f) return;
+                const url = URL.createObjectURL(f);
+                if (previewWrap) previewWrap.style.display = 'block';
+                if (f.type && f.type.indexOf('video') === 0) {
+                    if (previewImg) { previewImg.style.display = 'none'; previewImg.src = ''; }
+                    if (previewVideo) { previewVideo.src = url; previewVideo.style.display = 'block'; previewVideo.play().catch(()=>{}); }
+                } else {
+                    if (previewVideo) { previewVideo.pause(); previewVideo.style.display = 'none'; previewVideo.src = ''; }
+                    if (previewImg) { previewImg.src = url; previewImg.style.display = 'block'; }
+                }
+                const cleanup = () => { setTimeout(()=>{ try{ URL.revokeObjectURL(url);}catch(e){} },60000); };
+                if (previewVideo) previewVideo.onloadeddata = cleanup;
+                if (previewImg) previewImg.onload = cleanup;
+            }
+
+            if (addMediaBtn) {
+                addMediaBtn.addEventListener('click', () => {
+                    if (!mediaContainer) {
+                        console.error('Media container not found');
                         return;
                     }
-
-                    const url = URL.createObjectURL(f);
-                    previewWrap.style.display = 'block';
-                    if (f.type && f.type.indexOf('video') === 0) {
-                        previewImg.style.display = 'none';
-                        previewImg.src = '';
-                        previewVideo.src = url;
-                        previewVideo.style.display = 'block';
-                        // ensure it plays and loops while generation runs
-                        previewVideo.play().catch(() => {});
-                    } else {
-                        previewVideo.pause();
-                        previewVideo.style.display = 'none';
-                        previewVideo.src = '';
-                        previewImg.src = url;
-                        previewImg.style.display = 'block';
-                    }
-
-                    // Revoke object URL when page is unloaded or new file chosen
-                    previewVideo.onloadeddata = previewImg.onload = () => {
-                        setTimeout(() => { try { URL.revokeObjectURL(url); } catch(e){} }, 60000);
-                    };
+                    const idx = mediaContainer.children.length;
+                    const div = document.createElement('div');
+                    div.className = 'media-block';
+                    div.innerHTML = `<input type=\"file\" name=\"media_file_${idx}\" accept=\"image/*,video/*\">`;
+                    mediaContainer.appendChild(div);
+                    const inp = div.querySelector('input');
+                    if (inp) inp.addEventListener('change', refreshFileList);
                 });
+            }
+            if (mediaContainer) {
+                mediaContainer.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', refreshFileList));
             }
             
             // Check credentials
@@ -466,9 +504,12 @@
                 formData.append('video_length', document.getElementById('video_length').value);
 
                 // Attach uploaded media (if any)
-                const uploadInput = document.getElementById('story_file_0');
-                if (uploadInput && uploadInput.files && uploadInput.files[0]) {
-                    formData.append('story_file_0', uploadInput.files[0]);
+                if (mediaContainer) {
+                    Array.from(mediaContainer.querySelectorAll('input[type=file]')).forEach(inp => {
+                        if (inp.files && inp.files[0]) {
+                            formData.append(inp.name, inp.files[0]);
+                        }
+                    });
                 }
 
                 const response = await fetch('/generate-long', {

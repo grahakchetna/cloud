@@ -5,6 +5,11 @@ A comprehensive video layout adjustment UI has been added to the Long Video gene
 
 ## 🎨 Features Added
 
+### 0. **Media Upload Support**
+- Optional multiple media uploads available in both short and long video forms
+- Preview carousel on UI, media loops through during generation
+- Separate background images for short and long video modes (`shortbg.png` / `longbg.png`)
+
 ### 1. **Layout Customization Controls**
 The new layout section includes the following adjustable parameters:
 

@@ -658,6 +658,13 @@ def delete_video(filename):
 @app.route("/generate", methods=["POST"])
 def generate():
 
+    # Log incoming file keys for debugging media uploads
+    try:
+        file_keys = list(request.files.keys())
+        logger.info(f"Incoming upload keys: {file_keys}")
+    except Exception:
+        logger.debug("No upload keys present or failed to read request.files keys")
+
     headline = request.form["headline"]
     description = request.form["description"]
     language = request.form["language"]
@@ -688,17 +695,74 @@ def generate():
     if not audio_path:
         return jsonify({"error": "Voice generation succeeded but no file path returned"}), 400
 
+    # collect optional uploads (story_file_X and media_file_X)
+    story_media = []
+    from werkzeug.utils import secure_filename
+    os.makedirs('uploads', exist_ok=True)
+    # story_file_* keys (used by older UI / per-story attachments)
+    i = 0
+    while True:
+        key = f'story_file_{i}'
+        if key not in request.files:
+            break
+        f = request.files.get(key)
+        if f and getattr(f, 'filename', None):
+            try:
+                filename = secure_filename(f.filename)
+                ts = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
+                outname = f'story_{i}_{ts}_{filename}'
+                outpath = os.path.join('uploads', outname)
+                f.save(outpath)
+                story_media.append(outpath)
+                try:
+                    size = os.path.getsize(outpath)
+                except Exception:
+                    size = None
+                logger.info(f'✓ Saved story upload: {outpath} (size={size})')
+            except Exception as e:
+                logger.warning(f'Failed to save story upload {key}: {e}')
+        i += 1
+    # media_file_* keys (global media uploads)
+    i = 0
+    while True:
+        key = f'media_file_{i}'
+        if key not in request.files:
+            break
+        f = request.files.get(key)
+        if f and getattr(f, 'filename', None):
+            try:
+                filename = secure_filename(f.filename)
+                ts = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
+                outname = f'media_{i}_{ts}_{filename}'
+                outpath = os.path.join('uploads', outname)
+                f.save(outpath)
+                story_media.append(outpath)
+                try:
+                    size = os.path.getsize(outpath)
+                except Exception:
+                    size = None
+                logger.info(f'✓ Saved media upload: {outpath} (size={size})')
+            except Exception as e:
+                logger.warning(f'Failed to save media upload {key}: {e}')
+        i += 1
+
     # 3️⃣ Generate unique video filename with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
     video_filename = f"video_{timestamp}.mp4"
     output_video_path = os.path.join(VIDEOS_DIR, video_filename)
     
     # 4️⃣ Generate Video with custom output path
-    # Do not force-trim audio here — let the video length follow the generated audio.
-    # If a caller wants to cap duration, they can pass a value; by default use None.
     max_duration = None
-
-    video_path = generate_video(headline, description, audio_path, language=language, output_path=output_video_path, max_duration=max_duration)
+    # pass media_paths if any
+    video_path = generate_video(
+        headline,
+        description,
+        audio_path,
+        language=language,
+        output_path=output_video_path,
+        max_duration=max_duration,
+        media_paths=story_media if story_media else None
+    )
 
     if not video_path:
         return jsonify({"error": "Video generation failed"}), 400
@@ -910,6 +974,7 @@ def generate_long():
                     stories = [{"headline": title, "description": description}]
 
             # Handle per-story file uploads: story_file_0, story_file_1, ...
+            # plus global media_file_0, media_file_1, ...
             from werkzeug.utils import secure_filename
             os.makedirs('uploads', exist_ok=True)
             # Save any uploaded story files
@@ -930,6 +995,25 @@ def generate_long():
                         logger.info(f'✓ Saved story upload: {outpath}')
                     except Exception as e:
                         logger.warning(f'Failed to save story upload {key}: {e}')
+                i += 1
+            # Save any global media files as well
+            i = 0
+            while True:
+                key = f'media_file_{i}'
+                if key not in request.files:
+                    break
+                f = request.files.get(key)
+                if f and getattr(f, 'filename', None):
+                    try:
+                        filename = secure_filename(f.filename)
+                        ts = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
+                        outname = f'media_{i}_{ts}_{filename}'
+                        outpath = os.path.join('uploads', outname)
+                        f.save(outpath)
+                        story_media.append(outpath)
+                        logger.info(f'✓ Saved media upload: {outpath}')
+                    except Exception as e:
+                        logger.warning(f'Failed to save media upload {key}: {e}')
                 i += 1
 
             # pick first uploaded media if any
