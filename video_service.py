@@ -674,95 +674,12 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
                 bottom_limit = breaking_bar_y - 20
                 available_height = bottom_limit - desc_start_y
 
-                # ==== short-video special case: split box into media + scrolling text ====
+                # For short videos, ignore media and just show description text
+                # (user prefers simple text-only layout)
                 if WIDTH == 1080:
-                    # determine how much vertical space to give media (half by default)
-                    media_part_height = min(media_height, available_height // 2)
-                    if media_part_height <= 0:
-                        media_part_height = media_height
-                    # resize media to fit its part
-                    media_clip = media_clip.resize(height=media_part_height)
-                    media_height = media_clip.h
-                    media_clip = media_clip.set_position((right_content_x, desc_start_y))
-                    media_clip = media_clip.set_opacity(layout_mediaOpacity / 100.0)
-
-                    # build description clip for remainder
-                    desc_x = right_content_x
-                    desc_width = 450  # matches old short layout width
-                    desc_box_height = max(1, available_height - media_part_height)
-                    # reuse existing text-box generation/scrolling logic
-                    desc_img_path, desc_height = create_boxed_text_image(
-                        description,
-                        fontsize=40,
-                        color=(255, 255, 255),
-                        bold=False,
-                        box_width=desc_width,
-                        box_height=desc_box_height,
-                        language=language
-                    )
-                    # scrolling
-                    if desc_height > desc_box_height:
-                        from PIL import Image as PILImage
-                        import numpy as np
-
-                        full_img = PILImage.open(desc_img_path)
-
-                        def desc_make_frame(t):
-                            scroll_duration = duration * 0.35
-                            if t < scroll_duration:
-                                scroll_distance = desc_height - desc_box_height
-                                y_scroll = int((t / scroll_duration) * scroll_distance)
-                            else:
-                                y_scroll = int(desc_height - desc_box_height)
-
-                            cropped = full_img.crop((0, y_scroll, desc_width, y_scroll + desc_box_height))
-                            if cropped.mode == 'RGBA':
-                                cropped = cropped.convert('RGB')
-                            return np.array(cropped)
-
-                        from moviepy.video.VideoClip import VideoClip
-                        desc_clip = VideoClip(make_frame=desc_make_frame, duration=duration)
-                        desc_clip = desc_clip.set_position((desc_x, desc_start_y + media_part_height))
-                    else:
-                        desc_clip = ImageClip(desc_img_path).set_duration(duration)
-                        desc_clip = desc_clip.set_position((desc_x, desc_start_y + media_part_height))
-
-                    # combine media & text into single right-side clip
-                    # add a visible border around the entire container so it's easy
-                    # to spot even when the media image is dark or the overlay
-                    # makes the background look similar to the placeholder.
-                    container_height = media_part_height + desc_box_height
-                    border_top = (
-                        ColorClip((right_content_width, 3), color=(255, 215, 0))
-                        .set_position((right_content_x, desc_start_y))
-                        .set_duration(duration)
-                    )
-                    border_left = (
-                        ColorClip((3, container_height), color=(255, 215, 0))
-                        .set_position((right_content_x, desc_start_y))
-                        .set_duration(duration)
-                    )
-                    border_right = (
-                        ColorClip((3, container_height), color=(255, 215, 0))
-                        .set_position((right_content_x + right_content_width - 3, desc_start_y))
-                        .set_duration(duration)
-                    )
-                    border_bottom = (
-                        ColorClip((right_content_width, 3), color=(255, 215, 0))
-                        .set_position((right_content_x, desc_start_y + container_height - 3))
-                        .set_duration(duration)
-                    )
-                    right_content_clip = CompositeVideoClip([
-                        media_clip,
-                        desc_clip,
-                        border_top,
-                        border_left,
-                        border_right,
-                        border_bottom,
-                    ]).set_duration(duration)
-                    right_bg_box = None
-                    use_text_box = False
-                    logger.info("✓ Short-video: combined media + scrolling description prepared (with border)")
+                    logger.info("Short video: ignoring media, using text-only layout")
+                    use_text_box = True
+                    right_content_clip = None
                 else:
                     # center vertically by default
                     right_content_y = int((HEIGHT - media_height) / 2)
@@ -896,54 +813,15 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         no_media_loaded = not effective_media_list
         # Separate widths and heights for short (1080x1920) and long (1920x1080) videos
         if WIDTH == 1080:
-            # Short video adjustments: narrower width, taller height
-            # FORCED: Always reserve space for media container at top, text below
-            media_container_height = 300  # Fixed height for empty media container
+            # Short video: simple text box on right side
             desc_width = 450
-            desc_box_height = max(1, breaking_bar_y - desc_start_y - media_container_height - 20)
+            desc_box_height = max(1, breaking_bar_y - desc_start_y - 20)
         else:
             # Long video: horizontal 1920x1080
-            media_container_height = 250  # Fixed height for empty media container
             desc_width = 850
-            desc_box_height = max(1, breaking_bar_y - desc_start_y - media_container_height - 20)
+            desc_box_height = max(1, breaking_bar_y - desc_start_y - 20)
 
         logger.info(f"Creating text box: width={desc_width}, height={desc_box_height}, position=({desc_x}, {desc_start_y})")
-        
-        # FORCE: Generate empty media container placeholder (whether media is present or not)
-        media_placeholder = (
-            ColorClip((right_content_width, media_container_height), color=(45, 45, 45))
-            .set_opacity(0.85)
-            .set_position((right_content_x, desc_start_y))
-            .set_duration(duration)
-        )
-        logger.info(f"✓ Created media placeholder: {right_content_width}x{media_container_height}")
-        
-        # Add borders to media placeholder (top, left, right, bottom for clear visibility)
-        media_placeholder_border_top = (
-            ColorClip((right_content_width, 3), color=(255, 215, 0))
-            .set_position((right_content_x, desc_start_y))
-            .set_duration(duration)
-        )
-        
-        media_placeholder_border_left = (
-            ColorClip((3, media_container_height), color=(255, 215, 0))
-            .set_position((right_content_x, desc_start_y))
-            .set_duration(duration)
-        )
-        
-        media_placeholder_border_right = (
-            ColorClip((3, media_container_height), color=(255, 215, 0))
-            .set_position((right_content_x + right_content_width - 3, desc_start_y))
-            .set_duration(duration)
-        )
-        
-        media_placeholder_border_bottom = (
-            ColorClip((right_content_width, 3), color=(255, 215, 0))
-            .set_position((right_content_x, desc_start_y + media_container_height - 3))
-            .set_duration(duration)
-        )
-        
-        logger.info(f"Generated empty media container placeholder (size: {right_content_width}x{media_container_height})")
 
         # Create description text clipped to box
         desc_img_path, desc_height = create_boxed_text_image(
@@ -957,37 +835,11 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         )
         logger.info(f"✓ Created text image: {desc_img_path} (height={desc_height})")
 
-        # Background box and visible borders
-        desc_start_y_for_text = desc_start_y + media_container_height + 2
+        # Background box for text (semi-transparent dark background)
         desc_bg_box = (
-            ColorClip((desc_width, desc_box_height), color=(15, 15, 15))
-            .set_opacity(0.85 * (layout_mediaOpacity / 100.0))
-            .set_position((desc_x, desc_start_y_for_text))
-            .set_duration(duration)
-        )
-
-        # Create borders on all sides for text box visibility
-        desc_border_top = (
-            ColorClip((desc_width, 3), color=(255, 215, 0))
-            .set_position((desc_x, desc_start_y_for_text))
-            .set_duration(duration)
-        )
-        
-        desc_border_left = (
-            ColorClip((3, desc_box_height), color=(255, 215, 0))
-            .set_position((desc_x, desc_start_y_for_text))
-            .set_duration(duration)
-        )
-        
-        desc_border_right = (
-            ColorClip((3, desc_box_height), color=(255, 215, 0))
-            .set_position((desc_x + desc_width - 3, desc_start_y_for_text))
-            .set_duration(duration)
-        )
-        
-        desc_border_bottom = (
-            ColorClip((desc_width, 3), color=(255, 215, 0))
-            .set_position((desc_x, desc_start_y_for_text + desc_box_height - 3))
+            ColorClip((desc_width, desc_box_height), color=(0, 0, 0))
+            .set_opacity(0.4)
+            .set_position((desc_x, desc_start_y))
             .set_duration(duration)
         )
 
@@ -1014,26 +866,15 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
 
             from moviepy.video.VideoClip import VideoClip
             desc_clip = VideoClip(make_frame=desc_make_frame, duration=duration)
-            desc_clip = desc_clip.set_position((desc_x, desc_start_y_for_text))
-            logger.info(f"✓ Scrolling text clip created at ({desc_x}, {desc_start_y_for_text})")
+            desc_clip = desc_clip.set_position((desc_x, desc_start_y))
+            logger.info(f"✓ Scrolling text clip created at ({desc_x}, {desc_start_y})")
         else:
             logger.info(f"✓ Static text image: desc_clip created from {desc_img_path}")
             desc_clip = ImageClip(desc_img_path).set_duration(duration)
-            desc_clip = desc_clip.set_position((desc_x, desc_start_y_for_text))
-            logger.info(f"✓ Text clip positioned at ({desc_x}, {desc_start_y_for_text})")
-
-        # FORCE: Combine both media placeholder and text into composite
+            desc_clip = desc_clip.set_position((desc_x, desc_start_y))
+            logger.info(f"✓ Text clip positioned at ({desc_x}, {desc_start_y})")
         right_content_clip = CompositeVideoClip([
-            media_placeholder, 
-            media_placeholder_border_top,
-            media_placeholder_border_left,
-            media_placeholder_border_right,
-            media_placeholder_border_bottom,
             desc_bg_box, 
-            desc_border_top,
-            desc_border_left,
-            desc_border_right,
-            desc_border_bottom,
             desc_clip
         ]).set_duration(duration)
         right_bg_box = None
