@@ -698,8 +698,8 @@ def generate():
     if not script:
         return jsonify({"error": "Script generation failed"}), 400
 
-    # 2️⃣ Generate Voice
-    tts_result = generate_voice(script)
+    # 2️⃣ Generate Voice (with language for proper voice selection)
+    tts_result = generate_voice(script, language=language)
 
     if not tts_result.get("success"):
         error_msg = tts_result.get("error", "Voice generation failed")
@@ -828,7 +828,7 @@ def generate_and_post():
             return jsonify({"error": "Script generation failed"}), 400
 
         # 2️⃣ Generate Voice
-        tts_result = generate_voice(script)
+        tts_result = generate_voice(script, language=language)
         if not tts_result.get("success"):
             error_msg = tts_result.get("error", "Voice generation failed")
             logger.error(f"TTS error: {error_msg}")
@@ -1130,7 +1130,7 @@ def generate_long():
         
         # 2️⃣ Generate TTS Audio using existing tts_service
         logger.info("🎤 Step 2: Generating voice narration...")
-        tts_result = generate_voice(script_text)
+        tts_result = generate_voice(script_text, language=language)
         
         if not tts_result.get("success"):
             error_msg = tts_result.get("error", "Voice generation failed")

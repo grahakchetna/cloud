@@ -744,10 +744,81 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
                         right_content_y = desc_start_y
                     media_clip = media_clip.set_position((right_content_x, right_content_y))
                     media_clip = media_clip.set_opacity(layout_mediaOpacity / 100.0)
-                    right_content_clip = media_clip
+                    
+                    # FORCE: Always generate text box alongside media container
+                    # This ensures both containers are visible regardless of media presence
+                    logger.info("Generating text box container to accompany media...")
+                    desc_x = right_content_x
+                    # Position text box below media or next to it
+                    if WIDTH == 1080:
+                        # Short video: position text box below media
+                        desc_start_y_text = right_content_y + media_height + 10
+                        desc_width = 450
+                        desc_box_height = max(1, breaking_bar_y - desc_start_y_text - 20)
+                    else:
+                        # Long video: position text box below media
+                        desc_start_y_text = desc_start_y + media_height + 10
+                        desc_width = right_content_width
+                        desc_box_height = max(1, breaking_bar_y - desc_start_y_text - 20)
+                    
+                    # Create text box
+                    desc_img_path, desc_height = create_boxed_text_image(
+                        description,
+                        fontsize=40,
+                        color=(255, 255, 255),
+                        bold=False,
+                        box_width=desc_width,
+                        box_height=desc_box_height,
+                        language=language
+                    )
+                    
+                    # Background box for text
+                    desc_bg_box = (
+                        ColorClip((desc_width, desc_box_height), color=(0, 0, 0))
+                        .set_opacity(0.6 * (layout_mediaOpacity / 100.0))
+                        .set_position((desc_x, desc_start_y_text))
+                        .set_duration(duration)
+                    )
+                    
+                    desc_border = (
+                        ColorClip((desc_width, 3), color=(255, 215, 0))
+                        .set_position((desc_x, desc_start_y_text))
+                        .set_duration(duration)
+                    )
+                    
+                    # Handle scrolling if text is too long for box
+                    if desc_height > desc_box_height:
+                        logger.info(f"Description scrolling enabled (height {desc_height} > box {desc_box_height})")
+                        from PIL import Image as PILImage
+                        import numpy as np
+
+                        full_img = PILImage.open(desc_img_path)
+
+                        def desc_make_frame(t):
+                            scroll_duration = duration * 0.35
+                            if t < scroll_duration:
+                                scroll_distance = desc_height - desc_box_height
+                                y_scroll = int((t / scroll_duration) * scroll_distance)
+                            else:
+                                y_scroll = int(desc_height - desc_box_height)
+
+                            cropped = full_img.crop((0, y_scroll, desc_width, y_scroll + desc_box_height))
+                            if cropped.mode == 'RGBA':
+                                cropped = cropped.convert('RGB')
+                            return np.array(cropped)
+
+                        from moviepy.video.VideoClip import VideoClip
+                        desc_clip = VideoClip(make_frame=desc_make_frame, duration=duration)
+                        desc_clip = desc_clip.set_position((desc_x, desc_start_y_text))
+                    else:
+                        desc_clip = ImageClip(desc_img_path).set_duration(duration)
+                        desc_clip = desc_clip.set_position((desc_x, desc_start_y_text))
+                    
+                    # Combine media and text into single right-side clip
+                    right_content_clip = CompositeVideoClip([media_clip, desc_bg_box, desc_border, desc_clip]).set_duration(duration)
                     right_bg_box = None
                     use_text_box = False
-                    logger.info(f"✓ Media clip prepared and positioned successfully")
+                    logger.info(f"✓ Media + text container composite prepared successfully")
             else:
                 logger.info(f"No clips loaded from media list, falling back to text box")
                 use_text_box = True
@@ -759,6 +830,7 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
 
     # If no media, use a fixed description box positioned between the headline
     # bar and breaking bar to prevent overlap (restored from older short-layout).
+    # FORCE: Always generate both media container (empty placeholder) and text container
     if use_text_box:
         logger.info("Using fixed-position description box on right side (short layout)")
 
@@ -773,15 +845,32 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         # Separate widths and heights for short (1080x1920) and long (1920x1080) videos
         if WIDTH == 1080:
             # Short video adjustments: narrower width, taller height
-            # if there was media we'd reserve a smaller box so that a media
-            # area could occupy the top part; when no media we expand to
-            # fill the entire right-side width so that no "empty" container
-            # appears.
-            desc_width = right_content_width if no_media_loaded else 450
-            desc_box_height = 1200 # increased height to extend further toward bottom
+            # FORCED: Always reserve space for media container at top, text below
+            media_container_height = 300  # Fixed height for empty media container
+            desc_width = 450
+            desc_box_height = max(1, breaking_bar_y - desc_start_y - media_container_height - 20)
         else:
-            desc_width = 850      # Long video: horizontal 1920x1080 (proportional 1.6x)
-            desc_box_height = 550
+            # Long video: horizontal 1920x1080
+            media_container_height = 250  # Fixed height for empty media container
+            desc_width = 850
+            desc_box_height = max(1, breaking_bar_y - desc_start_y - media_container_height - 20)
+
+        # FORCE: Generate empty media container placeholder (whether media is present or not)
+        media_placeholder = (
+            ColorClip((right_content_width, media_container_height), color=(20, 20, 20))
+            .set_opacity(0.7)
+            .set_position((right_content_x, desc_start_y))
+            .set_duration(duration)
+        )
+        
+        # Add border to media placeholder
+        media_placeholder_border = (
+            ColorClip((right_content_width, 2), color=(255, 215, 0))
+            .set_position((right_content_x, desc_start_y + media_container_height))
+            .set_duration(duration)
+        )
+        
+        logger.info(f"Generated empty media container placeholder (size: {right_content_width}x{media_container_height})")
 
         # Create description text clipped to box
         desc_img_path, desc_height = create_boxed_text_image(
@@ -795,16 +884,17 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         )
 
         # Background box and optional border
+        desc_start_y_for_text = desc_start_y + media_container_height + 2
         desc_bg_box = (
             ColorClip((desc_width, desc_box_height), color=(0, 0, 0))
             .set_opacity(0.6 * (layout_mediaOpacity / 100.0))
-            .set_position((desc_x, desc_start_y))
+            .set_position((desc_x, desc_start_y_for_text))
             .set_duration(duration)
         )
 
         desc_border = (
             ColorClip((desc_width, 3), color=(255, 215, 0))
-            .set_position((desc_x, desc_start_y))
+            .set_position((desc_x, desc_start_y_for_text))
             .set_duration(duration)
         )
 
@@ -831,14 +921,20 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
 
             from moviepy.video.VideoClip import VideoClip
             desc_clip = VideoClip(make_frame=desc_make_frame, duration=duration)
-            desc_clip = desc_clip.set_position((desc_x, desc_start_y))
+            desc_clip = desc_clip.set_position((desc_x, desc_start_y_for_text))
         else:
             desc_clip = ImageClip(desc_img_path).set_duration(duration)
-            desc_clip = desc_clip.set_position((desc_x, desc_start_y))
+            desc_clip = desc_clip.set_position((desc_x, desc_start_y_for_text))
 
-        # Adopt unified variable names used later in composition
-        right_content_clip = desc_clip
-        right_bg_box = desc_bg_box
+        # FORCE: Combine both media placeholder and text into composite
+        right_content_clip = CompositeVideoClip([
+            media_placeholder, 
+            media_placeholder_border,
+            desc_bg_box, 
+            desc_border,
+            desc_clip
+        ]).set_duration(duration)
+        right_bg_box = None
     
     # ============= BOTTOM BREAKING NEWS BAR =============
     # Use same headline text for ticker consistency
@@ -874,37 +970,97 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
 
     # When generating a long video we may want to show multiple short lines
     # sequentially rather than one big paragraph.  Split on Danda or newline.
+    breaking_text = None
     if WIDTH > 1080:
         parts = [p.strip() for p in re.split(r"\s*।\s*|\n+", breaking_raw) if p.strip()]
+        logger.info(f"Breaking news: split into {len(parts)} parts for long video")
         if len(parts) > 1:
             per = duration / len(parts)
             subs = []
-            for part in parts:
-                path, height = create_ticker_text_image(
-                    part,
+            for i, part in enumerate(parts):
+                try:
+                    path, height = create_ticker_text_image(
+                        part,
+                        fontsize=bt_fontsize,
+                        color=(255, 255, 255),
+                        bold=False,
+                        language="gujarati"
+                    )
+                    if not path or not os.path.exists(path):
+                        logger.warning(f"Failed to create ticker image for part {i}, using fallback")
+                        # Fallback: try English rendering
+                        path, height = create_ticker_text_image(
+                            part,
+                            fontsize=bt_fontsize,
+                            color=(255, 255, 255),
+                            bold=False,
+                            language="en"
+                        )
+                    clip = ImageClip(path).set_duration(per)
+                    subs.append((clip, height))
+                    logger.info(f"✓ Created ticker part {i}: '{part[:50]}...'")
+                except Exception as e:
+                    logger.error(f"Error creating ticker part {i}: {e} - skipping this part")
+                    continue
+
+            if subs:
+                def make_pos_factory(h):
+                    def pos(t):
+                        scroll_speed = WIDTH + 2000
+                        x_pos = WIDTH - (t % per) * (scroll_speed / per)
+                        y_center = int(breaking_bar_y + (130 - h) / 2)
+                        y_center = max(0, y_center - 12)
+                        return (x_pos, y_center)
+                    return pos
+
+                moving_clips = []
+                for clip, h in subs:
+                    moving_clips.append(clip.set_position(make_pos_factory(h)))
+                try:
+                    breaking_text = concatenate_videoclips(moving_clips)
+                    logger.info(f"✓ Breaking news ticker: concatenated {len(subs)} clips (long video, multi-part)")
+                except Exception as e:
+                    logger.warning(f"Failed to concatenate ticker clips: {e} - falling back to single text")
+                    breaking_text = None
+            else:
+                logger.warning("No valid ticker parts created, will use fallback")
+                breaking_text = None
+        
+        # Fallback for when no multi-part or parts creation failed
+        if breaking_text is None:
+            logger.info("Using fallback single-line ticker for long video")
+            try:
+                breaking_text_img_path, breaking_text_height = create_ticker_text_image(
+                    breaking_raw,
                     fontsize=bt_fontsize,
                     color=(255, 255, 255),
                     bold=False,
                     language="gujarati"
                 )
-                clip = ImageClip(path).set_duration(per)
-                subs.append((clip, height))
-
-            def make_pos_factory(h):
-                def pos(t):
+                if not os.path.exists(breaking_text_img_path):
+                    logger.warning("Gujarati ticker image failed, trying English fallback")
+                    breaking_text_img_path, breaking_text_height = create_ticker_text_image(
+                        breaking_raw,
+                        fontsize=bt_fontsize,
+                        color=(255, 255, 255),
+                        bold=False,
+                        language="en"
+                    )
+                breaking_text_img = ImageClip(breaking_text_img_path).set_duration(duration)
+                def breaking_ticker_position(t):
                     scroll_speed = WIDTH + 2000
-                    x_pos = WIDTH - (t % per) * (scroll_speed / per)
-                    y_center = int(breaking_bar_y + (130 - h) / 2)
+                    x_pos = WIDTH - (t % duration) * (scroll_speed / duration)
+                    y_center = int(breaking_bar_y + (130 - breaking_text_height) / 2)
                     y_center = max(0, y_center - 12)
                     return (x_pos, y_center)
-                return pos
-
-            moving_clips = []
-            for clip, h in subs:
-                moving_clips.append(clip.set_position(make_pos_factory(h)))
-            breaking_text = concatenate_videoclips(moving_clips)
-        else:
-            # fallback to regular single-line ticker
+                breaking_text = breaking_text_img.set_position(breaking_ticker_position)
+                logger.info("✓ Breaking news ticker: single-line fallback (long video)")
+            except Exception as e:
+                logger.error(f"Failed to create breaking news ticker: {e} - using blank placeholder")
+                breaking_text = None
+    else:
+        # Short video (1080x1920): always use single-line ticker
+        try:
             breaking_text_img_path, breaking_text_height = create_ticker_text_image(
                 breaking_raw,
                 fontsize=bt_fontsize,
@@ -912,29 +1068,47 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
                 bold=False,
                 language="gujarati"
             )
+            if not os.path.exists(breaking_text_img_path):
+                logger.warning("Gujarati ticker image failed, trying English fallback")
+                breaking_text_img_path, breaking_text_height = create_ticker_text_image(
+                    breaking_raw,
+                    fontsize=bt_fontsize,
+                    color=(255, 255, 255),
+                    bold=False,
+                    language="en"
+                )
             breaking_text_img = ImageClip(breaking_text_img_path).set_duration(duration)
             def breaking_ticker_position(t):
-                scroll_speed = WIDTH + 2000
+                scroll_speed = WIDTH + 4500
                 x_pos = WIDTH - (t % duration) * (scroll_speed / duration)
                 y_center = int(breaking_bar_y + (130 - breaking_text_height) / 2)
-                y_center = max(0, y_center - 12)
                 return (x_pos, y_center)
             breaking_text = breaking_text_img.set_position(breaking_ticker_position)
-    else:
-        breaking_text_img_path, breaking_text_height = create_ticker_text_image(
-            breaking_raw,
-            fontsize=bt_fontsize,
-            color=(255, 255, 255),
-            bold=False,
-            language="gujarati"
-        )
-        breaking_text_img = ImageClip(breaking_text_img_path).set_duration(duration)
-        def breaking_ticker_position(t):
-            scroll_speed = WIDTH + 4500
-            x_pos = WIDTH - (t % duration) * (scroll_speed / duration)
-            y_center = int(breaking_bar_y + (130 - breaking_text_height) / 2)
-            return (x_pos, y_center)
-        breaking_text = breaking_text_img.set_position(breaking_ticker_position)
+            logger.info("✓ Breaking news ticker: single-line (short video)")
+        except Exception as e:
+            logger.error(f"Failed to create breaking news ticker: {e} - using blank placeholder")
+            breaking_text = None
+    
+    # Ensure breaking_text is not None - create a fallback if all else fails
+    if breaking_text is None:
+        logger.warning("Creating blank breaking news ticker as final fallback")
+        # Create a simple text fallback if everything else failed
+        try:
+            from PIL import Image as PILImage
+            from PIL import ImageDraw as PILImageDraw
+            from PIL import ImageFont
+            fallback_img = PILImage.new("RGBA", (400, 100), (0, 0, 0, 0))
+            fallback_draw = PILImageDraw.Draw(fallback_img)
+            fallback_draw.text((10, 10), "News Ticker", fill=(255, 255, 255, 255))
+            temp_file = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            fallback_img.save(temp_file.name)
+            temp_file.close()
+            breaking_text = ImageClip(temp_file.name).set_duration(duration)
+            breaking_text = breaking_text.set_position(("center", breaking_bar_y))
+            logger.info("✓ Created minimal fallback ticker")
+        except Exception as e:
+            logger.error(f"Even fallback ticker creation failed: {e}")
+            breaking_text = None
 
     # If media is present (we're not using the text box) and the caller
     # requested that description be placed in the breaking ticker, create

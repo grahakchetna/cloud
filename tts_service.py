@@ -56,6 +56,52 @@ FALLBACK_VOICES = [
     "en-US-SaraNeural",       # Natural, conversational
 ]
 
+# Language-specific voice mappings
+LANGUAGE_VOICES = {
+    "en": {
+        "primary": "en-US-AriaNeural",
+        "female": "en-US-JennyNeural",
+        "male": "en-US-BrianNeural",
+        "fallbacks": [
+            "en-US-JennyNeural", "en-US-AmberNeural", "en-US-AvaNeural",
+            "en-US-SaraNeural", "en-US-BrianNeural"
+        ]
+    },
+    "english": {  # Alternative key
+        "primary": "en-US-AriaNeural",
+        "female": "en-US-JennyNeural",
+        "male": "en-US-BrianNeural",
+        "fallbacks": [
+            "en-US-JennyNeural", "en-US-AmberNeural", "en-US-AvaNeural",
+            "en-US-SaraNeural", "en-US-BrianNeural"
+        ]
+    },
+    "hi": {  # Hindi
+        "primary": "hi-IN-SwaraNeural",  # Female for natural news reading
+        "female": "hi-IN-SwaraNeural",
+        "male": "hi-IN-MadhurNeural",
+        "fallbacks": ["hi-IN-SwaraNeural", "hi-IN-MadhurNeural"]
+    },
+    "hindi": {  # Alternative key
+        "primary": "hi-IN-SwaraNeural",
+        "female": "hi-IN-SwaraNeural",
+        "male": "hi-IN-MadhurNeural",
+        "fallbacks": ["hi-IN-SwaraNeural", "hi-IN-MadhurNeural"]
+    },
+    "gu": {  # Gujarati
+        "primary": "gu-IN-DhwaniNeural",  # Female for natural news reading
+        "female": "gu-IN-DhwaniNeural",
+        "male": "gu-IN-NiranjanNeural",
+        "fallbacks": ["gu-IN-DhwaniNeural", "gu-IN-NiranjanNeural"]
+    },
+    "gujarati": {  # Alternative key
+        "primary": "gu-IN-DhwaniNeural",
+        "female": "gu-IN-DhwaniNeural",
+        "male": "gu-IN-NiranjanNeural",
+        "fallbacks": ["gu-IN-DhwaniNeural", "gu-IN-NiranjanNeural"]
+    }
+}
+
 # All valid Edge TTS voices for validation
 VALID_VOICES = {
     # US English voices
@@ -67,6 +113,15 @@ VALID_VOICES = {
     "en-US-BrianNeural", "en-US-ChristopherNeural", "en-US-EricNeural",
     "en-US-GuyNeural", "en-US-JacobNeural", "en-US-RyanNeural",
     "en-US-TonyNeural",
+    # Other English variants
+    "en-US-AndrewNeural", "en-US-EmmaNeural", "en-US-RogerNeural",
+    "en-US-SteffanNeural", "en-US-AndrewMultilingualNeural",
+    "en-US-AvaMultilingualNeural", "en-US-BrianMultilingualNeural",
+    "en-US-EmmaMultilingualNeural",
+    # Hindi voices
+    "hi-IN-MadhurNeural", "hi-IN-SwaraNeural",
+    # Gujarati voices
+    "gu-IN-DhwaniNeural", "gu-IN-NiranjanNeural",
 }
 
 ELEVEN_API_KEY = os.getenv("ELEVENLABS_API_KEY")
@@ -131,41 +186,90 @@ def validate_voice_name(voice: str) -> bool:
         return False
 
 
-def get_best_voice(requested_voice: Optional[str] = None) -> str:
+def get_best_voice(requested_voice: Optional[str] = None, language: Optional[str] = None) -> str:
     """
-    Get the best available voice with smart fallback logic.
+    Get the best available voice with smart fallback logic and language support.
     
     1. If requested_voice is valid, use it
-    2. Otherwise, use PRIMARY_VOICE
-    3. If PRIMARY_VOICE unavailable, try fallback voices
+    2. If language is specified, use language-specific voice
+    3. Otherwise, use PRIMARY_VOICE
+    4. If PRIMARY_VOICE unavailable, try fallback voices
     
     Args:
         requested_voice: Optional voice name requested by user
+        language: Optional language code (en, hi, gu, english, hindi, gujarati)
     
     Returns:
         Best available voice name
     """
-    logger.info(f"Voice selection: requested={requested_voice}")
+    logger.info(f"Voice selection: requested_voice={requested_voice}, language={language}")
     
-    # Try requested voice first
+    # Try requested voice first (explicit user selection)
     if requested_voice and validate_voice_name(requested_voice):
-        logger.info(f"Using requested voice: {requested_voice}")
+        logger.info(f"✓ Using requested voice: {requested_voice}")
         return requested_voice
     
-    # Try primary voice
+    # Try language-specific voice
+    if language:
+        lang_key = language.lower()
+        if lang_key in LANGUAGE_VOICES:
+            lang_config = LANGUAGE_VOICES[lang_key]
+            # Try primary voice for this language
+            primary = lang_config.get("primary")
+            if primary and validate_voice_name(primary):
+                logger.info(f"✓ Using {lang_key} primary voice: {primary}")
+                return primary
+            # Try fallbacks for this language
+            for voice in lang_config.get("fallbacks", []):
+                if validate_voice_name(voice):
+                    logger.info(f"✓ Using {lang_key} fallback voice: {voice}")
+                    return voice
+        else:
+            logger.warning(f"Language {lang_key} not configured in LANGUAGE_VOICES")
+    
+    # Try primary voice (English default)
     if validate_voice_name(PRIMARY_VOICE):
-        logger.info(f"Using primary voice: {PRIMARY_VOICE}")
+        logger.info(f"✓ Using primary voice: {PRIMARY_VOICE}")
         return PRIMARY_VOICE
     
     # Fallback to first available fallback voice
     for voice in FALLBACK_VOICES:
         if validate_voice_name(voice):
-            logger.info(f"Using fallback voice: {voice}")
+            logger.info(f"✓ Using fallback voice: {voice}")
             return voice
     
     # Last resort - use primary anyway (Edge TTS may accept it)
     logger.warning(f"No validated voice available, using primary: {PRIMARY_VOICE}")
     return PRIMARY_VOICE
+
+
+def detect_language(text: str) -> str:
+    """
+    Detect language from text content using Unicode ranges.
+    
+    Returns language code: "en", "hi", "gu", etc.
+    Default to "en" (English) if detection fails.
+    """
+    if not text or not isinstance(text, str):
+        return "en"
+    
+    # Count characters in different Unicode ranges
+    gujarati_count = sum(1 for c in text if '\u0a80' <= c <= '\u0aff')  # Gujarati
+    devanagari_count = sum(1 for c in text if '\u0900' <= c <= '\u097f')  # Hindi/Devanagari
+    
+    # If text has Gujarati characters, it's Gujarati
+    if gujarati_count > devanagari_count and gujarati_count > len(text) * 0.1:
+        logger.info(f"Detected Gujarati ({gujarati_count} chars)")
+        return "gujarati"
+    
+    # If text has Devanagari characters (Hindi), it's Hindi
+    if devanagari_count > 0 and devanagari_count > len(text) * 0.1:
+        logger.info(f"Detected Hindi ({devanagari_count} chars)")
+        return "hindi"
+    
+    # Default to English
+    logger.info("Detected English (default)")
+    return "english"
 
 
 # ======================================
@@ -663,6 +767,7 @@ async def generate_voice_async(
     text: str,
     output_path: Optional[str] = None,
     voice: Optional[str] = None,
+    language: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[TTSError]]:
     """
     Generate voice audio with comprehensive fallback strategy and error handling.
@@ -677,6 +782,8 @@ async def generate_voice_async(
         text: Text to convert to speech
         output_path: Path to save MP3 file (uses default if not specified)
         voice: Optional voice name (uses best_voice if not specified)
+        language: Optional language code (en, hi, gu, english, hindi, gujarati)
+                 If not specified, will auto-detect from text
     
     Returns:
         Tuple of (audio_path, error_or_none)
@@ -700,6 +807,7 @@ async def generate_voice_async(
     # =========================================
     logger.info(f"=" * 60)
     logger.info(f"TTS REQUEST: Input text length: {len(text) if text else 0} characters")
+    logger.info(f"  Language specified: {language}")
     logger.info(f"=" * 60)
     
     if not text or not isinstance(text, str):
@@ -726,6 +834,11 @@ async def generate_voice_async(
     logger.info(f"Processed text length: {len(processed_text)} characters")
     logger.debug(f"Processed text preview: {processed_text[:100]}...")
     
+    # Auto-detect language if not specified
+    if not language:
+        language = detect_language(processed_text)
+        logger.info(f"Auto-detected language: {language}")
+    
     # =========================================
     # STEP 2: Check cache
     # =========================================
@@ -738,9 +851,10 @@ async def generate_voice_async(
             os.replace(cache_path, output_path)
         return output_path, None
     
-    # Get validated voice
-    selected_voice = get_best_voice(voice)
+    # Get validated voice with language support
+    selected_voice = get_best_voice(voice, language)
     attempted_voices.append(selected_voice)
+    logger.info(f"Selected voice: {selected_voice} (language: {language})")
     
     # =========================================
     # STEP 3: Try Edge TTS (3 attempts max for resilience)
@@ -892,6 +1006,7 @@ def generate_voice(
     text: str,
     output_path: Optional[str] = None,
     voice: Optional[str] = None,
+    language: Optional[str] = None,
     **kwargs
 ) -> Dict:
     """
@@ -902,6 +1017,8 @@ def generate_voice(
     
     Features:
     - Voice validation and fallback
+    - Language-aware voice selection (English, Hindi, Gujarati)
+    - Auto-language detection from text
     - Proper async/sync event loop management
     - Thread-safe with locking (only one Edge TTS request at a time)
     - Detailed error reporting
@@ -909,9 +1026,11 @@ def generate_voice(
     Args:
         text: Text to convert to speech
         output_path: Path to save MP3 file (uses default if not specified)
-        voice: Optional voice name (e.g., "en-US-JennyNeural")
+        voice: Optional voice name (e.g., "hi-IN-SwaraNeural", "gu-IN-DhwaniNeural")
+        language: Optional language code (en, hi, gu, english, hindi, gujarati)
+                 If not specified, will auto-detect from text
         **kwargs: Ignored parameters for backward compatibility
-                 (language, female_voice, voice_model, voice_provider, etc.)
+                 (language_param, female_voice, voice_model, voice_provider, etc.)
     
     Returns:
         Dict with:
@@ -924,7 +1043,7 @@ def generate_voice(
         - "attempted_voices": list (voices that were attempted)
     
     Example:
-        result = generate_voice("Hello world")
+        result = generate_voice("नमस्ते", language="hindi")
         if result["success"]:
             print(f"Audio saved to: {result['path']}")
         else:
@@ -939,14 +1058,14 @@ def generate_voice(
     # Acquire thread-safe lock
     with EDGE_TTS_LOCK:
         logger.info(f"Acquired EDGE_TTS_LOCK - starting TTS generation")
-        logger.info(f"  voice={voice}, output_path={output_path}")
+        logger.info(f"  text={text[:50]}..., voice={voice}, language={language}, output_path={output_path}")
         
         try:
             loop = _get_or_create_event_loop()
             
             # Run async function and get results
             audio_path, tts_error = loop.run_until_complete(
-                generate_voice_async(text, output_path, voice=voice)
+                generate_voice_async(text, output_path, voice=voice, language=language)
             )
             
             if audio_path:
