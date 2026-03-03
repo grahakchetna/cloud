@@ -24,7 +24,7 @@
 | **Anchor** | LEFT (40, 450) | 750px H | Static, does not move |
 | **Logo** | TOP-RIGHT (950, 40) | 100px H | Top corner |
 | **Ticker** | TOP-CENTER (Y: 150) | 120px H | Scrolls left-to-right |
-| **Right Content** | RIGHT (Y: 380) | 45% W, ≥200px H | Media or text |
+| **Right Content** | RIGHT (Y: 380) | 45% W, ≥200px H | Media top / text bottom; now always outlined with yellow border for visibility |
 | **Breaking Bar** | BOTTOM (Y: 1700) | 130px H | Static label |
 
 ## Conditional Rendering Logic

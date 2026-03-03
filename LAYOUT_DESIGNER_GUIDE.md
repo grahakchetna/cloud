@@ -25,10 +25,13 @@ Switch between formats using the tabs at the top of the designer.
 - Width and Height (10-100%)
 - Opacity (0-100%)
 
-#### **📷 Media Settings**
-- X, Y Position (0-100%)
-- Width and Height (10-100%)
-- Opacity (0-100%)
+#### **📷 Media / Text Region**
+- This area represents the right‑hand container where uploaded media
+  and/or description text will appear in short-format videos.
+- The designer does not currently allow adjusting its position or size;
+  those are managed automatically (media is shown in the top half, text in
+  the bottom half).  The preview below reflects this split, so you can
+  see where content will be rendered.
 
 #### **📢 Headline Bar**
 - Y Position (0-100%)

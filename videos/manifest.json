@@ -1,6 +1,16 @@
 {
   "videos": [
     {
+      "id": "20260303_174254_976",
+      "filename": "video_20260303_174244_671.mp4",
+      "path": "videos/video_20260303_174244_671.mp4",
+      "headline": "UI Test Headline",
+      "description": "UI Test Description",
+      "language": "english",
+      "created_at": "2026-03-03T17:42:54.976978",
+      "size_mb": 0.75
+    },
+    {
       "id": "20260303_131121_506",
       "filename": "video_20260303_131107_509.mp4",
       "path": "videos/video_20260303_131107_509.mp4",
