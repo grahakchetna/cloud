@@ -2,13 +2,21 @@
 
 This guide helps you run the **grahakchetna** project on Termux (Android terminal emulator).
 
+## 🚀 Quick Navigation
+
+- **⚡ Just want it working?** → See [TERMUX_ONE_LINERS.md](TERMUX_ONE_LINERS.md)
+- **❌ Getting audio file errors?** → See [TERMUX_AUDIO_ERROR_FIX.md](TERMUX_AUDIO_ERROR_FIX.md)  
+- **🔍 Need to verify setup?** → Run: `python3 termux_verify_setup.py`
+- **📖 Want detailed guide?** → Continue reading below
+
+---
+
 ## Prerequisites & Limitations
 
 ⚠️ **Important Notes:**
 - **Video Processing**: `moviepy` + `ffmpeg` on Termux may be slower or have limitations compared to desktop.
 - **Storage**: Ensure you have at least 2GB free space for dependencies + generated videos.
 - **Low RAM devices**: Generating videos may fail on devices with <2GB RAM.
-- **Git LFS**: Not available in standard Termux. Use workaround below.
 
 ---
 
@@ -52,6 +60,13 @@ mkdir -p assets
 # Example using curl (if hosted on GitHub releases or cloud):
 curl -o assets/bg.mp4 "https://github.com/gaathatech/grahakchetna/releases/download/v1.0/bg.mp4"
 curl -o assets/music.mp3 "https://github.com/gaathatech/grahakchetna/releases/download/v1.0/music.mp3"
+
+# ⚠️ TROUBLESHOOTING: If music.mp3 is corrupted (ffmpeg "Failed to find MP3 frames" error):
+# Option 1: Generate a silent MP3 placeholder (app works with voice-only)
+ffmpeg -f lavfi -i anullsrc=r=44100:cl=mono -t 10 -q:a 9 -acodec libmp3lame assets/music.mp3
+
+# Option 2: Download from free music source (ensure MP3 format)
+# wget -O assets/music.mp3 "https://example.com/free-music.mp3"
 ```
 
 ### Option B: Copy from Desktop via scp
@@ -151,6 +166,21 @@ pkg autoclean
 # Manually create it
 mkdir -p assets
 # Then copy/download media files using Option A or B above
+```
+
+### ❌ Error: "Failed to find MPEG audio frames" for music.mp3
+**This means your music.mp3 file is corrupted.** Fix it:
+
+```bash
+# Solution 1: Create a silent placeholder MP3 (app will work with voice-only)
+ffmpeg -f lavfi -i anullsrc=r=44100:cl=mono -t 10 -q:a 9 -acodec libmp3lame assets/music.mp3
+
+# Solution 2: Test if your music.mp3 is valid
+ffmpeg -i assets/music.mp3
+
+# Solution 3: Re-download or copy a valid MP3 file
+# From desktop:
+#   scp your-music.mp3 user@phone:/path/to/grahakchetna/assets/
 ```
 
 ---

@@ -298,6 +298,9 @@ Interactive tool for customizing and previewing video layouts with:
   
   # macOS
   brew install ffmpeg
+  
+  # Termux (Android)
+  pkg install ffmpeg imagemagick python3
   ```
 
 **Python dependencies:**
@@ -305,6 +308,9 @@ All required packages are listed in `requirements.txt`. Install with:
 ```bash
 pip install -r requirements.txt
 ```
+
+**⚡ Termux Users:**
+If running on Termux (Android), see [TERMUX_QUICK_FIX.md](TERMUX_QUICK_FIX.md) for quick setup and troubleshooting.
 
 **Asset files required:**
 - `assets/bg.mp4` – Background video for all video types
