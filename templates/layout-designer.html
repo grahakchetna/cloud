@@ -302,7 +302,11 @@
             <div class="preview-container" id="shortPreview">
                 <div style="position: absolute; left: 0; top: 0; width: 100%; height: 120px; background: #DC143C; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold;">Headline Bar (120px)</div>
                 <div style="position: absolute; left: 40px; top: 150px; width: 400px; height: 750px; background: rgba(100, 100, 100, 0.3); border: 1px dashed #66b2ff; display: flex; align-items: center; justify-content: center; color: #aaa;">Anchor</div>
-                <div style="position: absolute; right: 40px; top: 150px; width: 500px; height: 700px; background: rgba(30, 144, 255, 0.1); border: 1px dashed #66b2ff; display: flex; align-items: center; justify-content: center; color: #66b2ff;">Description (500×700px)</div>
+                <!-- right-hand container represents the combined media/text area -->
+                <div id="rightContentPreview" style="position: absolute; right: 40px; top: 150px; width: 500px; height: 700px; border: 1px dashed #66b2ff;">
+                    <div style="position:absolute; top:0; left:0; width:100%; height:50%; background:rgba(30,144,255,0.1); display:flex; align-items:center; justify-content:center; color:#66b2ff; font-size:0.8em;">Media</div>
+                    <div style="position:absolute; bottom:0; left:0; width:100%; height:50%; background:rgba(30,144,255,0.05); display:flex; align-items:center; justify-content:center; color:#66b2ff; font-size:0.8em;">Text</div>
+                </div>
                 <div style="position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 130px; background: #DC143C; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold;">Breaking News (130px)</div>
             </div>
 

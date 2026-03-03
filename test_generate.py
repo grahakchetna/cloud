@@ -24,6 +24,19 @@ video_service.HEIGHT = 1920
 out = video_service.generate_video('Test Headline', 'Test description', 'assets/music.mp3', language='english', output_path='videos/test_short_video.mp4', media_paths=[img_path])
 print('Generated short video:', out)
 
+# verify that the right-side container border is present in the output
+from moviepy.editor import VideoFileClip
+clip = VideoFileClip(out)
+frame = clip.get_frame(1)
+import numpy as np
+arr = np.array(frame)
+w = arr.shape[1]
+# look for yellow border pixels in right half
+yellow = np.array([255,215,0])
+mask = np.all(arr[:, w//2:] == yellow, axis=2)
+assert mask.sum() > 0, "Expected yellow border on right side of generated video"
+print('Border detected in short video output')
+
 # --------------------------------------------------------------
 # Now verify new split-box behavior using dummy clips (no heavy encoding)
 # --------------------------------------------------------------

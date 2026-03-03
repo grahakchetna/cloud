@@ -728,10 +728,41 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
                         desc_clip = desc_clip.set_position((desc_x, desc_start_y + media_part_height))
 
                     # combine media & text into single right-side clip
-                    right_content_clip = CompositeVideoClip([media_clip, desc_clip]).set_duration(duration)
+                    # add a visible border around the entire container so it's easy
+                    # to spot even when the media image is dark or the overlay
+                    # makes the background look similar to the placeholder.
+                    container_height = media_part_height + desc_box_height
+                    border_top = (
+                        ColorClip((right_content_width, 3), color=(255, 215, 0))
+                        .set_position((right_content_x, desc_start_y))
+                        .set_duration(duration)
+                    )
+                    border_left = (
+                        ColorClip((3, container_height), color=(255, 215, 0))
+                        .set_position((right_content_x, desc_start_y))
+                        .set_duration(duration)
+                    )
+                    border_right = (
+                        ColorClip((3, container_height), color=(255, 215, 0))
+                        .set_position((right_content_x + right_content_width - 3, desc_start_y))
+                        .set_duration(duration)
+                    )
+                    border_bottom = (
+                        ColorClip((right_content_width, 3), color=(255, 215, 0))
+                        .set_position((right_content_x, desc_start_y + container_height - 3))
+                        .set_duration(duration)
+                    )
+                    right_content_clip = CompositeVideoClip([
+                        media_clip,
+                        desc_clip,
+                        border_top,
+                        border_left,
+                        border_right,
+                        border_bottom,
+                    ]).set_duration(duration)
                     right_bg_box = None
                     use_text_box = False
-                    logger.info("✓ Short-video: combined media + scrolling description prepared")
+                    logger.info("✓ Short-video: combined media + scrolling description prepared (with border)")
                 else:
                     # center vertically by default
                     right_content_y = int((HEIGHT - media_height) / 2)
