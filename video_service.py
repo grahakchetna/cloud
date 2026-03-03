@@ -774,15 +774,34 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
                     
                     # Background box for text
                     desc_bg_box = (
-                        ColorClip((desc_width, desc_box_height), color=(0, 0, 0))
-                        .set_opacity(0.6 * (layout_mediaOpacity / 100.0))
+                        ColorClip((desc_width, desc_box_height), color=(15, 15, 15))
+                        .set_opacity(0.85 * (layout_mediaOpacity / 100.0))
                         .set_position((desc_x, desc_start_y_text))
                         .set_duration(duration)
                     )
                     
-                    desc_border = (
+                    # Create borders on all sides for better visibility
+                    desc_border_top = (
                         ColorClip((desc_width, 3), color=(255, 215, 0))
                         .set_position((desc_x, desc_start_y_text))
+                        .set_duration(duration)
+                    )
+                    
+                    desc_border_left = (
+                        ColorClip((3, desc_box_height), color=(255, 215, 0))
+                        .set_position((desc_x, desc_start_y_text))
+                        .set_duration(duration)
+                    )
+                    
+                    desc_border_right = (
+                        ColorClip((3, desc_box_height), color=(255, 215, 0))
+                        .set_position((desc_x + desc_width - 3, desc_start_y_text))
+                        .set_duration(duration)
+                    )
+                    
+                    desc_border_bottom = (
+                        ColorClip((desc_width, 3), color=(255, 215, 0))
+                        .set_position((desc_x, desc_start_y_text + desc_box_height - 3))
                         .set_duration(duration)
                     )
                     
@@ -815,7 +834,7 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
                         desc_clip = desc_clip.set_position((desc_x, desc_start_y_text))
                     
                     # Combine media and text into single right-side clip
-                    right_content_clip = CompositeVideoClip([media_clip, desc_bg_box, desc_border, desc_clip]).set_duration(duration)
+                    right_content_clip = CompositeVideoClip([media_clip, desc_bg_box, desc_border_top, desc_border_left, desc_border_right, desc_border_bottom, desc_clip]).set_duration(duration)
                     right_bg_box = None
                     use_text_box = False
                     logger.info(f"✓ Media + text container composite prepared successfully")
@@ -857,16 +876,34 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
 
         # FORCE: Generate empty media container placeholder (whether media is present or not)
         media_placeholder = (
-            ColorClip((right_content_width, media_container_height), color=(20, 20, 20))
-            .set_opacity(0.7)
+            ColorClip((right_content_width, media_container_height), color=(45, 45, 45))
+            .set_opacity(0.85)
             .set_position((right_content_x, desc_start_y))
             .set_duration(duration)
         )
         
-        # Add border to media placeholder
-        media_placeholder_border = (
-            ColorClip((right_content_width, 2), color=(255, 215, 0))
-            .set_position((right_content_x, desc_start_y + media_container_height))
+        # Add borders to media placeholder (top, left, right, bottom for clear visibility)
+        media_placeholder_border_top = (
+            ColorClip((right_content_width, 3), color=(255, 215, 0))
+            .set_position((right_content_x, desc_start_y))
+            .set_duration(duration)
+        )
+        
+        media_placeholder_border_left = (
+            ColorClip((3, media_container_height), color=(255, 215, 0))
+            .set_position((right_content_x, desc_start_y))
+            .set_duration(duration)
+        )
+        
+        media_placeholder_border_right = (
+            ColorClip((3, media_container_height), color=(255, 215, 0))
+            .set_position((right_content_x + right_content_width - 3, desc_start_y))
+            .set_duration(duration)
+        )
+        
+        media_placeholder_border_bottom = (
+            ColorClip((right_content_width, 3), color=(255, 215, 0))
+            .set_position((right_content_x, desc_start_y + media_container_height - 3))
             .set_duration(duration)
         )
         
@@ -883,18 +920,37 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
             language=language
         )
 
-        # Background box and optional border
+        # Background box and visible borders
         desc_start_y_for_text = desc_start_y + media_container_height + 2
         desc_bg_box = (
-            ColorClip((desc_width, desc_box_height), color=(0, 0, 0))
-            .set_opacity(0.6 * (layout_mediaOpacity / 100.0))
+            ColorClip((desc_width, desc_box_height), color=(15, 15, 15))
+            .set_opacity(0.85 * (layout_mediaOpacity / 100.0))
             .set_position((desc_x, desc_start_y_for_text))
             .set_duration(duration)
         )
 
-        desc_border = (
+        # Create borders on all sides for text box visibility
+        desc_border_top = (
             ColorClip((desc_width, 3), color=(255, 215, 0))
             .set_position((desc_x, desc_start_y_for_text))
+            .set_duration(duration)
+        )
+        
+        desc_border_left = (
+            ColorClip((3, desc_box_height), color=(255, 215, 0))
+            .set_position((desc_x, desc_start_y_for_text))
+            .set_duration(duration)
+        )
+        
+        desc_border_right = (
+            ColorClip((3, desc_box_height), color=(255, 215, 0))
+            .set_position((desc_x + desc_width - 3, desc_start_y_for_text))
+            .set_duration(duration)
+        )
+        
+        desc_border_bottom = (
+            ColorClip((desc_width, 3), color=(255, 215, 0))
+            .set_position((desc_x, desc_start_y_for_text + desc_box_height - 3))
             .set_duration(duration)
         )
 
@@ -929,9 +985,15 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         # FORCE: Combine both media placeholder and text into composite
         right_content_clip = CompositeVideoClip([
             media_placeholder, 
-            media_placeholder_border,
+            media_placeholder_border_top,
+            media_placeholder_border_left,
+            media_placeholder_border_right,
+            media_placeholder_border_bottom,
             desc_bg_box, 
-            desc_border,
+            desc_border_top,
+            desc_border_left,
+            desc_border_right,
+            desc_border_bottom,
             desc_clip
         ]).set_duration(duration)
         right_bg_box = None
