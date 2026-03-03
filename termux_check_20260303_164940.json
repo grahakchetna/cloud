@@ -1,0 +1,35 @@
+{
+  "pass": [
+    "python3: Python 3.12.1 - Python 3 runtime",
+    "git: git version 2.52.0 - Version control",
+    "flask: installed - Web framework",
+    "moviepy: installed - Video composition (CRITICAL)",
+    "edge_tts: installed - Text-to-speech",
+    "requests: installed - HTTP requests",
+    "assets/bg.mp4: 0.00MB - Background video",
+    "assets/music.mp3: 0.92MB - Background music",
+    "static/anchor.png: 2.53MB - Anchor image",
+    "static/logo.jpg: 0.02MB - Logo image",
+    "assets/: exists",
+    "static/: exists",
+    "templates/: exists",
+    "outputs/: created",
+    "uploads/: exists",
+    "videos/: exists",
+    ".env file: found",
+    ".env has 9 configured keys",
+    "Available space: 20G",
+    "Memory info: Mem:            15Gi       2.6Gi       1.3Gi        61Mi        12Gi        12Gi"
+  ],
+  "warn": [
+    "Not detected as Termux environment (might still work on native Linux)",
+    "convert not found - Optional: pkg install convert",
+    "python_dotenv: not found - Environment config",
+    "No TrueType fonts found - rendering may use fallbacks",
+    "Internet connectivity: may be limited"
+  ],
+  "fail": [
+    "ffmpeg NOT FOUND - Video/Audio encoding (CRITICAL) - Run: pkg install ffmpeg",
+    "Pillow: NOT INSTALLED - Image processing - Run: pip install Pillow"
+  ]
+}

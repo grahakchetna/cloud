@@ -473,7 +473,9 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         output_path = "static/final_video.mp4"
     
     # Ensure output directory exists
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     voice = AudioFileClip(audio_path)
     # Trim audio if a maximum duration is requested
@@ -636,22 +638,22 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
             for i, mp in enumerate(effective_media_list):
                 logger.info(f"Processing media {i+1}/{len(effective_media_list)}: {mp}")
                 if not os.path.exists(mp):
-                    logger.warning(f"Media path does not exist: {mp}")
+                    logger.warning(f"✗ Media path does not exist: {mp}")
                     continue
                 try:
                     if mp.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
-                        logger.info(f"  Loading as video...")
+                        logger.info(f"  Loading as video: {mp}")
                         clip = VideoFileClip(mp)
                         clip = clip.resize((right_content_width, int(right_content_width * clip.h / clip.w)))
                         clip = clip.subclip(0, min(clip.duration, duration))
                     else:
-                        logger.info(f"  Loading as image...")
+                        logger.info(f"  Loading as image: {mp}")
                         img = ImageClip(mp)
                         aspect = img.w / img.h if img.h > 0 else 1
                         height = int(right_content_width / aspect)
                         clip = img.resize((right_content_width, height)).set_duration(duration)
                     clips.append(clip)
-                    logger.info(f"  ✓ Successfully loaded media {i+1}")
+                    logger.info(f"  ✓ Successfully loaded media {i+1}: {mp}")
                 except Exception as e:
                     logger.error(f"  ✗ Failed to load media {i+1} ({mp}): {e}")
                     continue
@@ -851,7 +853,7 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
     # bar and breaking bar to prevent overlap (restored from older short-layout).
     # FORCE: Always generate both media container (empty placeholder) and text container
     if use_text_box:
-        logger.info("Using fixed-position description box on right side (short layout)")
+        logger.info("✓ Using fixed-position description box on right side (short layout)")
 
         # Fixed dimensions and positions (based on previous short layout)
         desc_x = right_content_x
@@ -874,6 +876,8 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
             desc_width = 850
             desc_box_height = max(1, breaking_bar_y - desc_start_y - media_container_height - 20)
 
+        logger.info(f"Creating text box: width={desc_width}, height={desc_box_height}, position=({desc_x}, {desc_start_y})")
+        
         # FORCE: Generate empty media container placeholder (whether media is present or not)
         media_placeholder = (
             ColorClip((right_content_width, media_container_height), color=(45, 45, 45))
@@ -881,6 +885,7 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
             .set_position((right_content_x, desc_start_y))
             .set_duration(duration)
         )
+        logger.info(f"✓ Created media placeholder: {right_content_width}x{media_container_height}")
         
         # Add borders to media placeholder (top, left, right, bottom for clear visibility)
         media_placeholder_border_top = (
@@ -919,6 +924,7 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
             box_height=desc_box_height,
             language=language
         )
+        logger.info(f"✓ Created text image: {desc_img_path} (height={desc_height})")
 
         # Background box and visible borders
         desc_start_y_for_text = desc_start_y + media_container_height + 2
@@ -956,7 +962,7 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
 
         # If text is taller than the box, create scrolling animation with masking
         if desc_height > desc_box_height:
-            logger.info(f"Description scrolling enabled (height {desc_height} > box {desc_box_height})")
+            logger.info(f"✓ Description scrolling enabled (height {desc_height} > box {desc_box_height})")
             from PIL import Image as PILImage
             import numpy as np
 
@@ -978,9 +984,12 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
             from moviepy.video.VideoClip import VideoClip
             desc_clip = VideoClip(make_frame=desc_make_frame, duration=duration)
             desc_clip = desc_clip.set_position((desc_x, desc_start_y_for_text))
+            logger.info(f"✓ Scrolling text clip created at ({desc_x}, {desc_start_y_for_text})")
         else:
+            logger.info(f"✓ Static text image: desc_clip created from {desc_img_path}")
             desc_clip = ImageClip(desc_img_path).set_duration(duration)
             desc_clip = desc_clip.set_position((desc_x, desc_start_y_for_text))
+            logger.info(f"✓ Text clip positioned at ({desc_x}, {desc_start_y_for_text})")
 
         # FORCE: Combine both media placeholder and text into composite
         right_content_clip = CompositeVideoClip([
@@ -1245,7 +1254,7 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         ticker_clip,
         # Right side content - either media or text box
         right_bg_box if 'right_bg_box' in locals() and right_bg_box is not None else None,
-            right_content_clip if right_content_clip is not None else None,
+        right_content_clip if right_content_clip is not None else None,
         breaking_bar,
         breaking_bar_border,
         breaking_text,
@@ -1253,7 +1262,10 @@ def generate_video(title, description, audio_path, language="en", use_female_anc
         ai_label,
     ]
 
+    logger.info(f"Before filtering: {len(clips)} total clips")
     clips = [c for c in clips if c is not None]
+    logger.info(f"✓ After filtering: {len(clips)} valid clips in final composition")
+    logger.info(f"  Clips included: bg, overlay, anchor, logo, headline_bar, headline_bar_border, ticker, right_content, breaking_bar, breaking_text, ai_label")
     main_video = CompositeVideoClip(clips).set_audio(final_audio)
 
     # Ending screen (3 sec)
