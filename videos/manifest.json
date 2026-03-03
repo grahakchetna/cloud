@@ -1,6 +1,16 @@
 {
   "videos": [
     {
+      "id": "20260303_131121_506",
+      "filename": "video_20260303_131107_509.mp4",
+      "path": "videos/video_20260303_131107_509.mp4",
+      "headline": "Test media upload",
+      "description": "This is a test of media upload",
+      "language": "english",
+      "created_at": "2026-03-03T13:11:21.506132",
+      "size_mb": 0.86
+    },
+    {
       "id": "20260302_173933_411",
       "filename": "long_video_20260302_173648_424.mp4",
       "path": "videos/long/long_video_20260302_173648_424.mp4",
