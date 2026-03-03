@@ -433,6 +433,15 @@
                     console.warn('Failed to read layout_short from localStorage', e);
                 }
 
+                // Attach uploaded media (if any) - ensure files are included in POST
+                if (mediaContainer) {
+                    Array.from(mediaContainer.querySelectorAll('input[type=file]')).forEach(inp => {
+                        if (inp.files && inp.files[0]) {
+                            formData.append(inp.name, inp.files[0]);
+                        }
+                    });
+                }
+
                 const response = await fetch('/generate', {
                     method: 'POST',
                     body: formData
